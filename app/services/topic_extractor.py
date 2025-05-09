@@ -6,15 +6,7 @@ genai.configure(api_key=GOOGLE_API_KEY)
 
 def extract_topic_from_text(text: str) -> str:
     try:
-        # List available models
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                model_name = m.name
-                break
-        else:
-            raise ValueError("No suitable model found for content generation")
-
-        model = genai.GenerativeModel(model_name)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""Extract the main topic from the following text. Return only the topic, nothing else.
         

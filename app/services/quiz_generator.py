@@ -11,15 +11,7 @@ def generate_quiz_questions(text: str, topic: str) -> List[Dict[str, str]]:
     Returns a list of dictionaries containing questions and their answers.
     """
     try:
-        # List available models
-        for m in genai.list_models():
-            if 'generateContent' in m.supported_generation_methods:
-                model_name = m.name
-                break
-        else:
-            raise ValueError("No suitable model found for content generation")
-
-        model = genai.GenerativeModel(model_name)
+        model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""Based on the following text about {topic}, generate 3 multiple choice questions.
         For each question, provide 4 options (A, B, C, D) and indicate the correct answer.
