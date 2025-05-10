@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, Query
+from fastapi import APIRouter, File, UploadFile, Query, HTTPException
 from app.services.pdf_processor import extract_pages_from_pdf
 from app.services.topic_extractor import extract_topics_per_page
 from app.services.quiz_generator import generate_quiz_questions
