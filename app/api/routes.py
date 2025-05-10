@@ -90,8 +90,8 @@ async def generate_quiz(
             if 1 <= page <= len(pages):
                 selected_pages = [pages[page-1]]
                 # Extract topics for the selected page
-                topics = extract_topics_per_page([pages[page-1]])
-                selected_topics = topics.get(page, [])
+                topics_per_page = extract_topics_per_page([pages[page-1]])
+                selected_topics = topics_per_page[0] if topics_per_page else []
         
         if not selected_pages:
             raise HTTPException(status_code=400, detail="No valid chapter or page selected")
