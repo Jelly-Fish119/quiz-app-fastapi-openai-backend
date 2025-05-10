@@ -13,5 +13,4 @@ app.add_middleware(
     allow_headers=["*"],  # Allows all headers
 )
 
-# Include router without prefix since routes already include /pdf/
 app.include_router(router) 
