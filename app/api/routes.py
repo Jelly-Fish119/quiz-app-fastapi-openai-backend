@@ -61,9 +61,10 @@ async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
         shutil.rmtree(chunk_dir)
         
         # Analyze the combined file
-        pages = extract_pages_from_pdf(str(final_path))
-        topics = extract_topics_per_page(pages)
-        chapters = analyze_chapters(pages)
+        with open(final_path, "rb") as pdf_file:
+            pages = extract_pages_from_pdf(pdf_file)
+            topics = extract_topics_per_page(pages)
+            chapters = analyze_chapters(pages)
         
         # Clean up the final file
         os.remove(final_path)
@@ -74,6 +75,11 @@ async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
             "topics": topics
         }
     except Exception as e:
+        # Clean up in case of error
+        if final_path.exists():
+            os.remove(final_path)
+        if chunk_dir.exists():
+            shutil.rmtree(chunk_dir)
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/pdf/analyze")
