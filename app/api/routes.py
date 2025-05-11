@@ -83,49 +83,60 @@ async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
             shutil.rmtree(chunk_dir)
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.post("/pdf/analyze")
-async def analyze_pdf(file: UploadFile = File(...)) -> Dict[str, Any]:
-    """Analyze PDF structure"""
-    try:
-        # Save uploaded file
-        file_path = UPLOAD_DIR / file.filename
-        with open(file_path, "wb") as buffer:
-            shutil.copyfileobj(file.file, buffer)
-        
-        # Extract pages and analyze
-        pages = extract_pages_from_pdf(str(file_path))
-        topics = extract_topics_per_page(pages)
-        chapters = analyze_chapters(pages)
-        
-        # Clean up
-        os.remove(file_path)
-        
-        return {
-            "chapters": chapters,
-            "topics": topics
-        }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
 @router.post("/pdf/generate-quiz")
 async def generate_quiz(
     file: UploadFile = File(...),
     chapter: Optional[str] = None,
     page: Optional[int] = None
 ) -> Dict[str, Any]:
-    """Generate quiz questions"""
+    """Generate quiz questions based on the provided PDF content"""
     try:
         # Save uploaded file
         file_path = UPLOAD_DIR / file.filename
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         
-        # Generate quiz
-        quiz = generate_quiz_questions(chapter, page)
+        # Extract text from the PDF
+        with open(file_path, "rb") as pdf_file:
+            pdf_content = pdf_file.read()
+            pages = extract_pages_from_pdf(pdf_content)
+            
+            # Get the specific page content if page number is provided
+            if page is not None and 0 <= page < len(pages):
+                text_content = pages[page]
+            else:
+                text_content = "\n".join(pages)
+            
+            # Extract topic from the content
+            topics = extract_topics_per_page([text_content])
+            topic = topics[0] if topics else "General Knowledge"
+            
+            # Generate quiz questions
+            quiz_questions = generate_quiz_questions(text_content, topic)
+            
+            # Structure the response
+            quiz_response = {
+                "quizzes": {
+                    f"page_{page if page is not None else 'all'}": {
+                        "topic": topic,
+                        "chapter": chapter,
+                        "page": page if page is not None else 0,
+                        "questions": {
+                            "multiple_choice": quiz_questions.get("multiple_choice", []),
+                            "fill_blanks": quiz_questions.get("fill_blanks", []),
+                            "true_false": quiz_questions.get("true_false", []),
+                            "matching": quiz_questions.get("matching", [])
+                        }
+                    }
+                }
+            }
         
         # Clean up
         os.remove(file_path)
         
-        return quiz
+        return quiz_response
     except Exception as e:
+        # Clean up in case of error
+        if file_path.exists():
+            os.remove(file_path)
         raise HTTPException(status_code=500, detail=str(e))
