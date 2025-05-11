@@ -46,7 +46,7 @@ async def upload_chunk(
 
 @router.post("/pdf/complete-upload")
 async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
-    """Combine chunks into final file"""
+    """Combine chunks into final file and analyze"""
     chunk_dir = CHUNKS_DIR / request.fileId
     final_path = UPLOAD_DIR / request.fileName
     
@@ -60,7 +60,19 @@ async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
         # Clean up chunks
         shutil.rmtree(chunk_dir)
         
-        return {"message": "File upload completed successfully"}
+        # Analyze the combined file
+        pages = extract_pages_from_pdf(str(final_path))
+        topics = extract_topics_per_page(pages)
+        chapters = analyze_chapters(pages)
+        
+        # Clean up the final file
+        os.remove(final_path)
+        
+        return {
+            "message": "File upload and analysis completed successfully",
+            "chapters": chapters,
+            "topics": topics
+        }
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
