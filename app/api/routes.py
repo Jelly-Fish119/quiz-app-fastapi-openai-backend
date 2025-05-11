@@ -97,6 +97,7 @@ async def generate_quiz(
             raise HTTPException(status_code=400, detail="No valid chapter or page selected")
         
         # Generate quiz questions for selected pages
+        print("------------selected_topics------------", selected_topics)
         quizzes = {}
         for i, page_content in enumerate(selected_pages):
             page_num = page if page is not None else chapters[i]["pageNumber"]
