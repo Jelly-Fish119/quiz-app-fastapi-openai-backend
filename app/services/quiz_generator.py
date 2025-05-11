@@ -13,10 +13,10 @@ QuestionType = Union[
     Dict[str, Dict[str, str]]  # Matching
 ]
 
-def generate_quiz_questions(text: str, topic: str) -> Dict[str, List[QuestionType]]:
+def generate_quiz_questions(text: str, topic: str) -> Dict[str, Dict[str, List[QuestionType]]]:
     """
     Generate different types of quiz questions based on the given text and topic.
-    Returns a dictionary containing lists of different question types.
+    Returns a dictionary containing quizzes with different question types.
     """
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
@@ -139,68 +139,93 @@ def generate_quiz_questions(text: str, topic: str) -> Dict[str, List[QuestionTyp
                 if not isinstance(q['pairs'], dict) or len(q['pairs']) != 4:
                     raise ValueError("Matching question must have exactly 4 pairs")
             
-            return questions
+            # Wrap the questions in the expected format
+            return {
+                "quizzes": {
+                    "page_1": {
+                        "topic": topic,
+                        "page": 1,
+                        "questions": questions
+                    }
+                }
+            }
             
         except (json.JSONDecodeError, ValueError) as e:
             logging.error(f"Failed to parse quiz questions: {str(e)}")
             logging.error(f"Raw response: {response_text}")
             return {
-                "multiple_choice": [{
-                    "question": "Failed to generate questions",
-                    "options": {
-                        "A": "Error occurred",
-                        "B": "Please try again",
-                        "C": "Contact support",
-                        "D": "None of the above"
-                    },
-                    "correct_answer": "A"
-                }],
-                "fill_blanks": [{
-                    "question": "Failed to generate questions",
-                    "answers": ["Error occurred"]
-                }],
-                "true_false": [{
-                    "question": "Failed to generate questions",
-                    "correct_answer": True
-                }],
-                "matching": [{
-                    "question": "Failed to generate questions",
-                    "pairs": {
-                        "Error": "Error occurred",
-                        "Please": "Try again",
-                        "Contact": "Support",
-                        "None": "Of the above"
+                "quizzes": {
+                    "page_1": {
+                        "topic": topic,
+                        "page": 1,
+                        "questions": {
+                            "multiple_choice": [{
+                                "question": "Failed to generate questions",
+                                "options": {
+                                    "A": "Error occurred",
+                                    "B": "Please try again",
+                                    "C": "Contact support",
+                                    "D": "None of the above"
+                                },
+                                "correct_answer": "A"
+                            }],
+                            "fill_blanks": [{
+                                "question": "Failed to generate questions",
+                                "answers": ["Error occurred"]
+                            }],
+                            "true_false": [{
+                                "question": "Failed to generate questions",
+                                "correct_answer": True
+                            }],
+                            "matching": [{
+                                "question": "Failed to generate questions",
+                                "pairs": {
+                                    "Error": "Error occurred",
+                                    "Please": "Try again",
+                                    "Contact": "Support",
+                                    "None": "Of the above"
+                                }
+                            }]
+                        }
                     }
-                }]
+                }
             }
     except Exception as e:
         logging.error(f"Error in quiz generation: {str(e)}")
         return {
-            "multiple_choice": [{
-                "question": "Failed to generate questions",
-                "options": {
-                    "A": "Error occurred",
-                    "B": "Please try again",
-                    "C": "Contact support",
-                    "D": "None of the above"
-                },
-                "correct_answer": "A"
-            }],
-            "fill_blanks": [{
-                "question": "Failed to generate questions",
-                "answers": ["Error occurred"]
-            }],
-            "true_false": [{
-                "question": "Failed to generate questions",
-                "correct_answer": True
-            }],
-            "matching": [{
-                "question": "Failed to generate questions",
-                "pairs": {
-                    "Error": "Error occurred",
-                    "Please": "Try again",
-                    "Contact": "Support",
-                    "None": "Of the above"
+            "quizzes": {
+                "page_1": {
+                    "topic": topic,
+                    "page": 1,
+                    "questions": {
+                        "multiple_choice": [{
+                            "question": "Failed to generate questions",
+                            "options": {
+                                "A": "Error occurred",
+                                "B": "Please try again",
+                                "C": "Contact support",
+                                "D": "None of the above"
+                            },
+                            "correct_answer": "A"
+                        }],
+                        "fill_blanks": [{
+                            "question": "Failed to generate questions",
+                            "answers": ["Error occurred"]
+                        }],
+                        "true_false": [{
+                            "question": "Failed to generate questions",
+                            "correct_answer": True
+                        }],
+                        "matching": [{
+                            "question": "Failed to generate questions",
+                            "pairs": {
+                                "Error": "Error occurred",
+                                "Please": "Try again",
+                                "Contact": "Support",
+                                "None": "Of the above"
+                            }
+                        }]
+                    }
                 }
-            }]
+            }
         } 
