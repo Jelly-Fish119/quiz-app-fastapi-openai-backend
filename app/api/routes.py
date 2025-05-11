@@ -109,10 +109,11 @@ async def generate_quiz(
             
             # Extract topic from the content
             topics = extract_topics_per_page([text_content])
+            chapters = analyze_chapters([text_content])
             topic = topics[0] if topics else "General Knowledge"
-            
+            chapter = chapters[0] if chapters else "General Knowledge"
             # Generate quiz questions
-            quiz_questions = generate_quiz_questions(text_content, topic)
+            quiz_questions = generate_quiz_questions(text_content, topic, chapter)
             
             # Structure the response
             quiz_response = {

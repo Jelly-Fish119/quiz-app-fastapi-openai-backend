@@ -13,7 +13,7 @@ QuestionType = Union[
     Dict[str, Dict[str, str]]  # Matching
 ]
 
-def generate_quiz_questions(text: str, topic: str) -> Dict[str, List[QuestionType]]:
+def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, List[QuestionType]]:
     """
     Generate different types of quiz questions based on the given text and topic.
     Returns a dictionary containing lists of different question types.
@@ -22,7 +22,7 @@ def generate_quiz_questions(text: str, topic: str) -> Dict[str, List[QuestionTyp
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""You are a quiz generator. Create questions based on the following text.
-        The text is about: {topic}
+        The text is about: {topic} and {chapter}
 
         Text content:
         {text}
