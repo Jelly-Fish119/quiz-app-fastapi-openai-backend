@@ -5,6 +5,7 @@ import logging
 genai.configure(api_key=GOOGLE_API_KEY)
 
 def extract_topic_from_text(text: str) -> str:
+    print("------------quiz topic extraction------------")
     try:
         model = genai.GenerativeModel('gemini-1.5-flash')
         
