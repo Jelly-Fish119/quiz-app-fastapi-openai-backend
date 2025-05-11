@@ -62,7 +62,8 @@ async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
         
         # Analyze the combined file
         with open(final_path, "rb") as pdf_file:
-            pages = extract_pages_from_pdf(pdf_file)
+            pdf_content = pdf_file.read()
+            pages = extract_pages_from_pdf(pdf_content)
             topics = extract_topics_per_page(pages)
             chapters = analyze_chapters(pages)
         
