@@ -90,6 +90,7 @@ async def generate_quiz(
     page: Optional[int] = None
 ) -> Dict[str, Any]:
     """Generate quiz questions based on the provided PDF content"""
+    file_path = None
     try:
         # Save uploaded file
         file_path = UPLOAD_DIR / file.filename
@@ -101,19 +102,43 @@ async def generate_quiz(
             pdf_content = pdf_file.read()
             pages = extract_pages_from_pdf(pdf_content)
             
+            if not pages:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to extract text from PDF. The file might be empty or corrupted."
+                )
+            
             # Get the specific page content if page number is provided
-            if page is not None and 0 <= page < len(pages):
+            if page is not None:
+                if page < 0 or page >= len(pages):
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"Invalid page number. The PDF has {len(pages)} pages."
+                    )
                 text_content = pages[page]
             else:
                 text_content = "\n".join(pages)
+            
+            if not text_content.strip():
+                raise HTTPException(
+                    status_code=400,
+                    detail="No text content found in the selected page(s)."
+                )
             
             # Extract topic from the content
             topics = extract_topics_per_page([text_content])
             chapters = analyze_chapters([text_content])
             topic = topics[0] if topics else "General Knowledge"
             chapter = chapters[0] if chapters else "General Knowledge"
+            
             # Generate quiz questions
-            quiz_questions = generate_quiz_questions(text_content, topic, chapter)
+            try:
+                quiz_questions = generate_quiz_questions(text_content, topic, chapter)
+            except Exception as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to generate quiz questions: {str(e)}"
+                )
             
             # Structure the response
             quiz_response = {
@@ -132,12 +157,21 @@ async def generate_quiz(
                 }
             }
         
-        # Clean up
-        os.remove(file_path)
-        
         return quiz_response
+    except HTTPException as he:
+        raise he
     except Exception as e:
-        # Clean up in case of error
-        if file_path.exists():
-            os.remove(file_path)
-        raise HTTPException(status_code=500, detail=str(e))
+        import traceback
+        print(f"Error in generate_quiz: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(
+            status_code=500,
+            detail=f"An error occurred while generating the quiz: {str(e)}"
+        )
+    finally:
+        # Clean up
+        if file_path and file_path.exists():
+            try:
+                os.remove(file_path)
+            except Exception as e:
+                print(f"Error cleaning up file: {str(e)}")

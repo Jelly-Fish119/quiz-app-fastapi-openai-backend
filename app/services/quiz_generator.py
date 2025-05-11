@@ -19,6 +19,7 @@ def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, Li
     Returns a dictionary containing lists of different question types.
     """
     try:
+        logger.info(f"Initializing quiz generation for topic: {topic}, chapter: {chapter}")
         model = genai.GenerativeModel('gemini-1.5-flash')
         
         prompt = f"""You are a quiz generator. Create questions based on the following text.
@@ -83,8 +84,13 @@ def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, Li
         7. Do not include any explanations or additional text
         """
         
-        response = model.generate_content(prompt)
-        response_text = response.text.strip()
+        logger.info("Sending request to Google AI model")
+        try:
+            response = model.generate_content(prompt)
+            response_text = response.text.strip()
+        except Exception as e:
+            logger.error(f"Google AI API error: {str(e)}")
+            raise RuntimeError(f"Failed to generate content with Google AI: {str(e)}")
         
         # Try to clean the response if it contains markdown code blocks
         if response_text.startswith('```json'):
@@ -93,6 +99,7 @@ def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, Li
             response_text = response_text[:-3]
         response_text = response_text.strip()
         
+        logger.info("Processing model response")
         try:
             questions = json.loads(response_text)
             
@@ -139,68 +146,14 @@ def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, Li
                 if not isinstance(q['pairs'], dict) or len(q['pairs']) != 4:
                     raise ValueError("Matching question must have exactly 4 pairs")
             
+            logger.info("Successfully generated and validated quiz questions")
             return questions
             
         except (json.JSONDecodeError, ValueError) as e:
-            logging.error(f"Failed to parse quiz questions: {str(e)}")
-            logging.error(f"Raw response: {response_text}")
-            return {
-                "multiple_choice": [{
-                    "question": "Failed to generate questions",
-                    "options": {
-                        "A": "Error occurred",
-                        "B": "Please try again",
-                        "C": "Contact support",
-                        "D": "None of the above"
-                    },
-                    "correct_answer": "A"
-                }],
-                "fill_blanks": [{
-                    "question": "Failed to generate questions",
-                    "answers": ["Error occurred"]
-                }],
-                "true_false": [{
-                    "question": "Failed to generate questions",
-                    "correct_answer": True
-                }],
-                "matching": [{
-                    "question": "Failed to generate questions",
-                    "pairs": {
-                        "Error": "Error occurred",
-                        "Please": "Try again",
-                        "Contact": "Support",
-                        "None": "Of the above"
-                    }
-                }]
-            }
+            logger.error(f"Failed to parse quiz questions: {str(e)}")
+            logger.error(f"Raw response: {response_text}")
+            raise ValueError(f"Failed to generate valid quiz questions: {str(e)}")
+            
     except Exception as e:
-        logging.error(f"Error in quiz generation: {str(e)}")
-        return {
-            "multiple_choice": [{
-                "question": "Failed to generate questions",
-                "options": {
-                    "A": "Error occurred",
-                    "B": "Please try again",
-                    "C": "Contact support",
-                    "D": "None of the above"
-                },
-                "correct_answer": "A"
-            }],
-            "fill_blanks": [{
-                "question": "Failed to generate questions",
-                "answers": ["Error occurred"]
-            }],
-            "true_false": [{
-                "question": "Failed to generate questions",
-                "correct_answer": True
-            }],
-            "matching": [{
-                "question": "Failed to generate questions",
-                "pairs": {
-                    "Error": "Error occurred",
-                    "Please": "Try again",
-                    "Contact": "Support",
-                    "None": "Of the above"
-                }
-            }]
-        } 
+        logger.error(f"Error in quiz generation: {str(e)}")
+        raise RuntimeError(f"Failed to generate quiz questions: {str(e)}") 
