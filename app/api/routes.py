@@ -84,7 +84,6 @@ async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
 @router.post("/pdf/generate-quiz")
 async def generate_quiz(
     fileName: str = Form(...),
-    chapter: str = Form(...),
     page: int = Form(...)
 ) -> Dict[str, Any]:
     """Generate quiz questions based on the provided PDF content"""
