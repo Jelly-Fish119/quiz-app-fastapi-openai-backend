@@ -103,7 +103,7 @@ async def generate_quiz(
             page_num = page if page is not None else chapters[i]["pageNumber"]
             quiz = generate_quiz_questions(page_content, selected_topics)
             quizzes[f"page_{page_num}"] = {
-                "topic": ", ".join(selected_topics),
+                "topic": selected_topics,
                 "chapter": chapter if chapter else None,
                 "page": page_num,
                 "questions": quiz
