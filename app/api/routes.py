@@ -1,4 +1,4 @@
-from fastapi import APIRouter, File, UploadFile, Query, HTTPException
+from fastapi import APIRouter, File, UploadFile, Query, HTTPException, Form
 from app.services.pdf_processor import extract_pages_from_pdf
 from app.services.topic_extractor import extract_topics_per_page
 from app.services.quiz_generator import generate_quiz_questions
@@ -20,10 +20,10 @@ CHUNKS_DIR.mkdir(exist_ok=True)
 @router.post("/pdf/upload-chunk")
 async def upload_chunk(
     file: UploadFile = File(...),
-    fileId: str = Query(...),
-    chunkIndex: int = Query(...),
-    totalChunks: int = Query(...),
-    fileName: str = Query(...)
+    fileId: str = Form(...),
+    chunkIndex: str = Form(...),
+    totalChunks: str = Form(...),
+    fileName: str = Form(...)
 ) -> Dict[str, Any]:
     """Handle individual chunk uploads"""
     chunk_dir = CHUNKS_DIR / fileId
