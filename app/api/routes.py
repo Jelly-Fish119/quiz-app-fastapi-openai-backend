@@ -4,6 +4,7 @@ from app.services.topic_extractor import extract_topics_per_page
 from app.services.quiz_generator import generate_quiz_questions
 from app.services.chapter_analyzer import analyze_chapters
 from typing import Dict, Any, Optional
+from pydantic import BaseModel
 import os
 import shutil
 from pathlib import Path
@@ -16,6 +17,11 @@ CHUNKS_DIR = UPLOAD_DIR / "chunks"
 # Ensure directories exist
 UPLOAD_DIR.mkdir(exist_ok=True)
 CHUNKS_DIR.mkdir(exist_ok=True)
+
+class CompleteUploadRequest(BaseModel):
+    fileId: str
+    fileName: str
+    totalChunks: int
 
 @router.post("/pdf/upload-chunk")
 async def upload_chunk(
@@ -39,18 +45,14 @@ async def upload_chunk(
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/pdf/complete-upload")
-async def complete_upload(
-    fileId: str,
-    fileName: str,
-    totalChunks: int
-) -> Dict[str, Any]:
+async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
     """Combine chunks into final file"""
-    chunk_dir = CHUNKS_DIR / fileId
-    final_path = UPLOAD_DIR / fileName
+    chunk_dir = CHUNKS_DIR / request.fileId
+    final_path = UPLOAD_DIR / request.fileName
     
     try:
         with open(final_path, "wb") as outfile:
-            for i in range(totalChunks):
+            for i in range(request.totalChunks):
                 chunk_path = chunk_dir / f"chunk_{i}"
                 with open(chunk_path, "rb") as infile:
                     shutil.copyfileobj(infile, outfile)
