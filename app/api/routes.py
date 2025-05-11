@@ -121,7 +121,7 @@ async def generate_quiz(
             shutil.copyfileobj(file.file, buffer)
         
         # Generate quiz
-        quiz = generate_quiz_questions(str(file_path), chapter, page)
+        quiz = generate_quiz_questions(chapter, page)
         
         # Clean up
         os.remove(file_path)
