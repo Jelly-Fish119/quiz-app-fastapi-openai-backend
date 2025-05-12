@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 # Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.0-pro')
+
 
 async def analyze_chapters(text: str) -> List[Dict[str, Any]]:
     """

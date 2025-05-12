@@ -9,7 +9,8 @@ logger = logging.getLogger(__name__)
 
 # Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.0-pro')
+
 
 async def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, List[Dict[str, Any]]]:
     """
