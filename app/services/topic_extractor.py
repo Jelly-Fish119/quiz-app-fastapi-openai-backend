@@ -17,6 +17,11 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
     Returns a list of topics with their confidence scores.
     """
     try:
+        # First, check if the text is meaningful
+        if not text or len(text.strip()) < 10:
+            logger.error("Text is too short or empty")
+            raise ValueError("Text is too short or empty")
+
         prompt = f"""You are an expert at analyzing educational content and identifying specific topics.
         Analyze the following text and identify the main topics or themes.
         Focus on extracting specific, detailed topics rather than general ones.
@@ -27,6 +32,7 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
         3. Topics should be relevant to the content
         4. Avoid generic topics like "General Knowledge" or "General Content"
         5. Consider the context and domain of the text
+        6. If you can't identify specific topics, return an empty array instead of generic topics
         
         For each topic, provide a confidence score between 0 and 1.
         Format the response as a JSON array of objects with the following structure:
@@ -50,6 +56,7 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
             specific_prompt = f"""Extract specific topics from this educational content.
             Focus on technical terms, concepts, and specific subject areas.
             Avoid general topics.
+            If you can't identify specific topics, return an empty array.
             
             Text:
             {text}
@@ -68,16 +75,19 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
         
         if not topics:
             logger.error("Failed to extract specific topics")
-            return [{"name": "General Knowledge", "confidence": 1.0}]
+            raise ValueError("Could not extract meaningful topics from the text")
         
         # Filter out low confidence topics and sort by confidence
         topics = [t for t in topics if t['confidence'] >= 0.6]
         topics.sort(key=lambda x: x['confidence'], reverse=True)
         
+        if not topics:
+            raise ValueError("No topics met the confidence threshold")
+        
         return topics
     except Exception as e:
         logger.error(f"Error extracting topics: {str(e)}")
-        return [{"name": "General Knowledge", "confidence": 1.0}]
+        raise Exception(f"Failed to extract topics: {str(e)}")
 
 def parse_topics(text: str) -> List[Dict[str, Any]]:
     """

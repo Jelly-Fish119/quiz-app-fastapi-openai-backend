@@ -11,24 +11,39 @@ logger = logging.getLogger(__name__)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.0-pro')
 
-
 async def analyze_chapters(text: str) -> List[Dict[str, Any]]:
     """
     Analyze the given text to identify chapters or sections.
     Returns a list of chapters with their confidence scores.
     """
     try:
-        prompt = f"""Analyze the following text and identify the main chapters or sections.
+        # First, check if the text is meaningful
+        if not text or len(text.strip()) < 10:
+            logger.error("Text is too short or empty")
+            raise ValueError("Text is too short or empty")
+
+        prompt = f"""You are an expert at analyzing educational content and identifying chapters or sections.
+        Analyze the following text and identify the main chapters or sections.
+        Focus on extracting specific, detailed chapter names rather than general ones.
+        
+        Guidelines:
+        1. Identify 2-3 most relevant chapters or sections
+        2. Each chapter should be specific and detailed (e.g., "Introduction to Neural Networks" instead of "Introduction")
+        3. Chapters should be relevant to the content
+        4. Avoid generic chapters like "General Content" or "General Chapter" or "General Knowledge"
+        5. Consider the context and domain of the text
+        6. If you can't identify specific chapters, return an empty array instead of generic chapters
+        
         For each chapter, provide a confidence score between 0 and 1.
         Format the response as a JSON array of objects with the following structure:
         [
             {{
-                "name": "chapter name",
+                "name": "specific chapter name",
                 "confidence": confidence_score
             }}
         ]
         
-        Text:
+        Text to analyze:
         {text}
         """
         
@@ -36,13 +51,43 @@ async def analyze_chapters(text: str) -> List[Dict[str, Any]]:
         chapters = parse_chapters(response.text)
         
         if not chapters:
-            logger.warning("No chapters identified in text")
-            return [{"name": "General Content", "confidence": 1.0}]
+            logger.warning("No chapters identified in text, trying with a more specific prompt")
+            # Try with a more specific prompt if the first attempt fails
+            specific_prompt = f"""Extract specific chapters or sections from this educational content.
+            Focus on identifying clear chapter divisions and section headers.
+            Avoid generic chapter names.
+            If you can't identify specific chapters, return an empty array.
+            
+            Text:
+            {text}
+            
+            Return as JSON array:
+            [
+                {{
+                    "name": "specific chapter",
+                    "confidence": score
+                }}
+            ]
+            """
+            
+            response = await model.generate_content(specific_prompt)
+            chapters = parse_chapters(response.text)
+        
+        if not chapters:
+            logger.error("Failed to identify specific chapters")
+            raise ValueError("Could not identify meaningful chapters from the text")
+        
+        # Filter out low confidence chapters and sort by confidence
+        chapters = [c for c in chapters if c['confidence'] >= 0.6]
+        chapters.sort(key=lambda x: x['confidence'], reverse=True)
+        
+        if not chapters:
+            raise ValueError("No chapters met the confidence threshold")
         
         return chapters
     except Exception as e:
         logger.error(f"Error analyzing chapters: {str(e)}")
-        return [{"name": "General Content", "confidence": 1.0}]
+        raise Exception(f"Failed to analyze chapters: {str(e)}")
 
 def parse_chapters(text: str) -> List[Dict[str, Any]]:
     """
@@ -66,10 +111,12 @@ def parse_chapters(text: str) -> List[Dict[str, Any]]:
                 # Ensure confidence is a float between 0 and 1
                 confidence = float(chapter['confidence'])
                 if 0 <= confidence <= 1:
-                    valid_chapters.append({
-                        'name': chapter['name'],
-                        'confidence': confidence
-                    })
+                    # Skip generic chapters
+                    if chapter['name'].lower() not in ['general content', 'general chapter', 'general section']:
+                        valid_chapters.append({
+                            'name': chapter['name'],
+                            'confidence': confidence
+                        })
         
         return valid_chapters
     except Exception as e:
