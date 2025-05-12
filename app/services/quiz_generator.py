@@ -1,162 +1,147 @@
-from google import generativeai as genai
-from app.core.config import GOOGLE_API_KEY
-from typing import List, Dict, Union
+import google.generativeai as genai
+import os
 import logging
-import json
+from typing import List, Dict, Any
 
 # Configure logging
+logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-genai.configure(api_key=GOOGLE_API_KEY)
+# Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-pro')
 
-QuestionType = Union[
-    Dict[str, str],  # Multiple Choice
-    Dict[str, List[str]],  # Fill in the Blanks
-    Dict[str, bool],  # True/False
-    Dict[str, Dict[str, str]]  # Matching
-]
-
-def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, List[QuestionType]]:
-    """
-    Generate different types of quiz questions based on the given text and topic.
-    Returns a dictionary containing lists of different question types.
-    """
+async def generate_quiz_questions(texts: List[str], topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     try:
-        logger.info(f"Initializing quiz generation for topic: {topic}, chapter: {chapter}")
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # Combine all text
+        combined_text = "\n\n".join(texts)
         
-        prompt = f"""You are a quiz generator. Create questions based on the following text.
-        The text is about: {topic} and {chapter}
+        # Create context from topics and chapters
+        context = f"Topics: {', '.join(t['name'] for t in topics)}\n"
+        context += f"Chapters: {', '.join(c['name'] for c in chapters)}\n\n"
+        context += "Text:\n" + combined_text
 
-        Text content:
-        {text}
-
-        Generate the following types of questions:
-        1. Multiple Choice (3 questions)
-        2. Fill in the Blanks (2 questions)
-        3. True/False (2 questions)
-        4. Matching (1 question with 4 pairs)
-
-        IMPORTANT: You must respond with ONLY a valid JSON object containing all question types.
-        Use this exact structure:
+        # Generate multiple choice questions
+        mc_prompt = f"""Based on the following text, generate 5 multiple choice questions. Each question should have 4 options and one correct answer.
+        Include an explanation for each correct answer.
+        Format each question as a JSON object with the following structure:
         {{
-            "multiple_choice": [
-                {{
-                    "question": "The question text",
-                    "options": {{
-                        "A": "First option",
-                        "B": "Second option",
-                        "C": "Third option",
-                        "D": "Fourth option"
-                    }},
-                    "correct_answer": "A"
-                }}
-            ],
-            "fill_blanks": [
-                {{
-                    "question": "Complete the sentence: [BLANK] is important because [BLANK]",
-                    "answers": ["First blank answer", "Second blank answer"]
-                }}
-            ],
-            "true_false": [
-                {{
-                    "question": "Statement to evaluate",
-                    "correct_answer": true
-                }}
-            ],
-            "matching": [
-                {{
-                    "question": "Match the following:",
-                    "pairs": {{
-                        "Term 1": "Definition 1",
-                        "Term 2": "Definition 2",
-                        "Term 3": "Definition 3",
-                        "Term 4": "Definition 4"
-                    }}
-                }}
-            ]
+            "question": "question text",
+            "options": ["option1", "option2", "option3", "option4"],
+            "correct_answer": "correct option",
+            "explanation": "explanation of the correct answer",
+            "type": "multiple_choice"
         }}
+        
+        Text:
+        {context}"""
 
-        Rules:
-        1. Return ONLY the JSON object, no other text
-        2. Multiple choice questions must have exactly 4 options (A, B, C, D)
-        3. Fill in the blanks questions should have [BLANK] markers
-        4. True/False questions must have boolean answers
-        5. Matching questions must have exactly 4 pairs
-        6. Make sure the JSON is properly formatted with double quotes
-        7. Do not include any explanations or additional text
-        """
+        mc_response = await model.generate_content(mc_prompt)
+        multiple_choice = parse_questions(mc_response.text)
+
+        # Generate true/false questions
+        tf_prompt = f"""Based on the following text, generate 3 true/false questions.
+        Include an explanation for each answer.
+        Format each question as a JSON object with the following structure:
+        {{
+            "question": "question text",
+            "options": ["true", "false"],
+            "correct_answer": "true or false",
+            "explanation": "explanation of the correct answer",
+            "type": "true_false"
+        }}
         
-        logger.info("Sending request to Google AI model")
-        try:
-            response = model.generate_content(prompt)
-            response_text = response.text.strip()
-        except Exception as e:
-            logger.error(f"Google AI API error: {str(e)}")
-            raise RuntimeError(f"Failed to generate content with Google AI: {str(e)}")
+        Text:
+        {context}"""
+
+        tf_response = await model.generate_content(tf_prompt)
+        true_false = parse_questions(tf_response.text)
+
+        # Generate fill in the blanks questions
+        fb_prompt = f"""Based on the following text, generate 3 fill in the blanks questions.
+        Each question should have a sentence with a blank space and the correct answer.
+        Format each question as a JSON object with the following structure:
+        {{
+            "question": "sentence with _____ for the blank",
+            "options": [],
+            "correct_answer": "correct word or phrase",
+            "explanation": "explanation of the correct answer",
+            "type": "fill_blanks"
+        }}
         
-        # Try to clean the response if it contains markdown code blocks
-        if response_text.startswith('```json'):
-            response_text = response_text[7:]
-        if response_text.endswith('```'):
-            response_text = response_text[:-3]
-        response_text = response_text.strip()
+        Text:
+        {context}"""
+
+        fb_response = await model.generate_content(fb_prompt)
+        fill_blanks = parse_questions(fb_response.text)
+
+        # Generate matching questions
+        match_prompt = f"""Based on the following text, generate 2 matching questions.
+        Each question should have a list of terms and their definitions or related items.
+        Format each question as a JSON object with the following structure:
+        {{
+            "question": "Match the following terms with their definitions:",
+            "options": ["term1", "term2", "term3", "term4"],
+            "correct_answer": "definition1,definition2,definition3,definition4",
+            "explanation": "explanation of the correct matches",
+            "type": "matching"
+        }}
         
-        logger.info("Processing model response")
-        try:
-            questions = json.loads(response_text)
-            
-            # Validate the structure
-            required_sections = ['multiple_choice', 'fill_blanks', 'true_false', 'matching']
-            if not all(section in questions for section in required_sections):
-                raise ValueError("Missing required question sections")
-            
-            # Validate multiple choice questions
-            if not isinstance(questions['multiple_choice'], list) or len(questions['multiple_choice']) != 3:
-                raise ValueError("Invalid number of multiple choice questions")
-            for q in questions['multiple_choice']:
-                if not all(k in q for k in ['question', 'options', 'correct_answer']):
-                    raise ValueError("Invalid multiple choice question structure")
-                if not all(k in q['options'] for k in ['A', 'B', 'C', 'D']):
-                    raise ValueError("Invalid multiple choice options structure")
-                if q['correct_answer'] not in ['A', 'B', 'C', 'D']:
-                    raise ValueError("Invalid multiple choice correct answer")
-            
-            # Validate fill in the blanks questions
-            if not isinstance(questions['fill_blanks'], list) or len(questions['fill_blanks']) != 2:
-                raise ValueError("Invalid number of fill in the blanks questions")
-            for q in questions['fill_blanks']:
-                if not all(k in q for k in ['question', 'answers']):
-                    raise ValueError("Invalid fill in the blanks question structure")
-                if not isinstance(q['answers'], list):
-                    raise ValueError("Fill in the blanks answers must be a list")
-            
-            # Validate true/false questions
-            if not isinstance(questions['true_false'], list) or len(questions['true_false']) != 2:
-                raise ValueError("Invalid number of true/false questions")
-            for q in questions['true_false']:
-                if not all(k in q for k in ['question', 'correct_answer']):
-                    raise ValueError("Invalid true/false question structure")
-                if not isinstance(q['correct_answer'], bool):
-                    raise ValueError("True/false answer must be boolean")
-            
-            # Validate matching questions
-            if not isinstance(questions['matching'], list) or len(questions['matching']) != 1:
-                raise ValueError("Invalid number of matching questions")
-            for q in questions['matching']:
-                if not all(k in q for k in ['question', 'pairs']):
-                    raise ValueError("Invalid matching question structure")
-                if not isinstance(q['pairs'], dict) or len(q['pairs']) != 4:
-                    raise ValueError("Matching question must have exactly 4 pairs")
-            
-            logger.info("Successfully generated and validated quiz questions")
-            return questions
-            
-        except (json.JSONDecodeError, ValueError) as e:
-            logger.error(f"Failed to parse quiz questions: {str(e)}")
-            logger.error(f"Raw response: {response_text}")
-            raise ValueError(f"Failed to generate valid quiz questions: {str(e)}")
-            
+        Text:
+        {context}"""
+
+        match_response = await model.generate_content(match_prompt)
+        matching = parse_questions(match_response.text)
+
+        # Generate short answer questions
+        sa_prompt = f"""Based on the following text, generate 2 short answer questions.
+        Include a model answer and explanation for each question.
+        Format each question as a JSON object with the following structure:
+        {{
+            "question": "question text",
+            "options": [],
+            "correct_answer": "model answer",
+            "explanation": "explanation of the answer",
+            "type": "short_answer"
+        }}
+        
+        Text:
+        {context}"""
+
+        sa_response = await model.generate_content(sa_prompt)
+        short_answer = parse_questions(sa_response.text)
+
+        return {
+            "multiple_choice": multiple_choice,
+            "true_false": true_false,
+            "fill_blanks": fill_blanks,
+            "matching": matching,
+            "short_answer": short_answer
+        }
+
     except Exception as e:
-        logger.error(f"Error in quiz generation: {str(e)}")
-        raise RuntimeError(f"Failed to generate quiz questions: {str(e)}") 
+        logger.error(f"Error generating quiz questions: {str(e)}")
+        raise Exception(f"Failed to generate quiz questions: {str(e)}")
+
+def parse_questions(text: str) -> List[Dict[str, Any]]:
+    try:
+        # Extract JSON objects from the text
+        import json
+        import re
+        
+        # Find all JSON objects in the text
+        json_objects = re.findall(r'\{[^{}]*\}', text)
+        
+        questions = []
+        for obj in json_objects:
+            try:
+                question = json.loads(obj)
+                if all(key in question for key in ['question', 'options', 'correct_answer', 'explanation', 'type']):
+                    questions.append(question)
+            except json.JSONDecodeError:
+                continue
+        
+        return questions
+    except Exception as e:
+        logger.error(f"Error parsing questions: {str(e)}")
+        return [] 
