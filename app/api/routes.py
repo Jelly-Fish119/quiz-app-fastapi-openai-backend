@@ -88,7 +88,7 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
         {combined_text}
         """
         
-        response = await model.generate_content(prompt)
+        response = model.generate_content(prompt)
         result = json.loads(response.text)
         
         # Filter out low confidence items and sort by confidence for each page
