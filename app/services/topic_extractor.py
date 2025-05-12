@@ -14,7 +14,7 @@ def extract_topics_per_page(pages: list[str]) -> dict[int, str]:
         
         # Combine all pages into a single text with page markers
         combined_text = "\n\n".join([f"Page {i+1}:\n{page}" for i, page in enumerate(pages)])
-        print("combined_text", combined_text)        
+        print("combined_text\n", combined_text)        
         prompt = f"""Analyze the following text and identify the main topic for each page.
         Return ONLY a JSON object mapping page numbers to topics.
         Example format: {{"1": "Topic for page 1", "2": "Topic for page 2", ...}}
