@@ -25,7 +25,7 @@ def extract_topics_per_page(pages: list[str]) -> dict[int, str]:
         Rules:
         1. Return ONLY the JSON object, no other text
         2. Each topic should be a short, descriptive phrase
-        3. If a page has no clear topic, use "General Content"
+        3. If a page has no clear topic, retry extract the topic for the page
         4. Make sure the JSON is properly formatted with double quotes
         5. Use page numbers as keys (1-based)
         """

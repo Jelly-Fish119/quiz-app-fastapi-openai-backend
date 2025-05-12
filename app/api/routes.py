@@ -150,7 +150,12 @@ async def generate_quiz(
                 print(f"Error extracting topics: {str(e)}")  # Debug log
                 topics = {}
             
-            chapters = analyze_chapters(pages)
+            try:
+                chapters = analyze_chapters(pages)
+                print(f"Extracted chapters: {chapters}")  # Debug log
+            except Exception as e:
+                print(f"Error analyzing chapters: {str(e)}")  # Debug log
+                chapters = {}
             
             # Get the topic for the current page or use the first available topic
             try:
@@ -165,7 +170,18 @@ async def generate_quiz(
                 print(f"Error selecting topic: {str(e)}")  # Debug log
                 topic = "General Knowledge"
             
-            chapter = chapters[0] if chapters else "General Knowledge"
+            # Get the chapter for the current page or use the first available chapter
+            try:
+                if page is not None and page in chapters:
+                    chapter = chapters[page]
+                elif chapters:
+                    chapter = next(iter(chapters.values()))
+                else:
+                    chapter = "General Knowledge"
+                print(f"Selected chapter: {chapter}")  # Debug log
+            except Exception as e:
+                print(f"Error selecting chapter: {str(e)}")  # Debug log
+                chapter = "General Knowledge"
             
             # Generate quiz questions
             try:
