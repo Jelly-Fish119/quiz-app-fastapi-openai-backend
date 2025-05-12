@@ -11,7 +11,36 @@ logger = logging.getLogger(__name__)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-pro')
 
-async def generate_quiz_questions(text: str, topic: str, chapter: str) -> List[Dict[str, Any]]:
+async def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, List[Dict[str, Any]]]:
+    """
+    Generate multiple types of quiz questions based on the given text, topic, and chapter.
+    Returns a dictionary containing different types of questions.
+    """
+    try:
+        # Generate multiple choice questions
+        mc_questions = await generate_multiple_choice(text, topic, chapter)
+        
+        # Generate true/false questions
+        tf_questions = await generate_true_false(text, topic, chapter)
+        
+        # Generate fill in the blanks questions
+        fb_questions = await generate_fill_blanks(text, topic, chapter)
+        
+        # Generate short answer questions
+        sa_questions = await generate_short_answer(text, topic, chapter)
+        
+        return {
+            "multiple_choice": mc_questions,
+            "true_false": tf_questions,
+            "fill_blanks": fb_questions,
+            "short_answer": sa_questions
+        }
+    except Exception as e:
+        logger.error(f"Error generating quiz questions: {str(e)}")
+        raise Exception(f"Failed to generate quiz questions: {str(e)}")
+
+async def generate_multiple_choice(text: str, topic: str, chapter: str) -> List[Dict[str, Any]]:
+    """Generate multiple choice questions"""
     try:
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
         The questions should focus on the topic "{topic}" within the chapter "{chapter}".
@@ -31,17 +60,93 @@ async def generate_quiz_questions(text: str, topic: str, chapter: str) -> List[D
         """
         
         response = await model.generate_content(prompt)
-        questions = parse_questions(response.text)
-        
-        if not questions:
-            raise Exception("Failed to generate valid questions")
-        
-        return questions
+        return parse_questions(response.text)
     except Exception as e:
-        logger.error(f"Error generating quiz questions: {str(e)}")
-        raise Exception(f"Failed to generate quiz questions: {str(e)}")
+        logger.error(f"Error generating multiple choice questions: {str(e)}")
+        return []
+
+async def generate_true_false(text: str, topic: str, chapter: str) -> List[Dict[str, Any]]:
+    """Generate true/false questions"""
+    try:
+        prompt = f"""Generate 3 true/false questions based on the following text.
+        The questions should focus on the topic "{topic}" within the chapter "{chapter}".
+        
+        Format the response as a JSON array of objects with the following structure:
+        [
+            {{
+                "question": "question text",
+                "options": ["true", "false"],
+                "correct_answer": "true or false",
+                "explanation": "explanation of the correct answer"
+            }}
+        ]
+        
+        Text:
+        {text}
+        """
+        
+        response = await model.generate_content(prompt)
+        return parse_questions(response.text)
+    except Exception as e:
+        logger.error(f"Error generating true/false questions: {str(e)}")
+        return []
+
+async def generate_fill_blanks(text: str, topic: str, chapter: str) -> List[Dict[str, Any]]:
+    """Generate fill in the blanks questions"""
+    try:
+        prompt = f"""Generate 3 fill in the blanks questions based on the following text.
+        The questions should focus on the topic "{topic}" within the chapter "{chapter}".
+        
+        Format the response as a JSON array of objects with the following structure:
+        [
+            {{
+                "question": "sentence with _____ for the blank",
+                "options": [],
+                "correct_answer": "correct word or phrase",
+                "explanation": "explanation of the correct answer"
+            }}
+        ]
+        
+        Text:
+        {text}
+        """
+        
+        response = await model.generate_content(prompt)
+        return parse_questions(response.text)
+    except Exception as e:
+        logger.error(f"Error generating fill in the blanks questions: {str(e)}")
+        return []
+
+async def generate_short_answer(text: str, topic: str, chapter: str) -> List[Dict[str, Any]]:
+    """Generate short answer questions"""
+    try:
+        prompt = f"""Generate 2 short answer questions based on the following text.
+        The questions should focus on the topic "{topic}" within the chapter "{chapter}".
+        
+        Format the response as a JSON array of objects with the following structure:
+        [
+            {{
+                "question": "question text",
+                "options": [],
+                "correct_answer": "model answer",
+                "explanation": "explanation of the answer"
+            }}
+        ]
+        
+        Text:
+        {text}
+        """
+        
+        response = await model.generate_content(prompt)
+        return parse_questions(response.text)
+    except Exception as e:
+        logger.error(f"Error generating short answer questions: {str(e)}")
+        return []
 
 def parse_questions(text: str) -> List[Dict[str, Any]]:
+    """
+    Parse the AI response into a structured list of questions.
+    """
     try:
         import json
         import re
@@ -62,17 +167,15 @@ def parse_questions(text: str) -> List[Dict[str, Any]]:
                 'correct_answer' in question and 
                 'explanation' in question):
                 
-                # Ensure options is a list with exactly 4 items
-                if (isinstance(question['options'], list) and 
-                    len(question['options']) == 4 and 
-                    question['correct_answer'] in question['options']):
-                    
-                    valid_questions.append({
-                        'question': question['question'],
-                        'options': question['options'],
-                        'correct_answer': question['correct_answer'],
-                        'explanation': question['explanation']
-                    })
+                # For multiple choice questions, ensure options is a list with exactly 4 items
+                if isinstance(question['options'], list):
+                    if len(question['options']) == 4:
+                        if question['correct_answer'] in question['options']:
+                            valid_questions.append(question)
+                    elif len(question['options']) == 2 and question['options'] == ['true', 'false']:
+                        valid_questions.append(question)
+                    elif len(question['options']) == 0:
+                        valid_questions.append(question)
         
         return valid_questions
     except Exception as e:

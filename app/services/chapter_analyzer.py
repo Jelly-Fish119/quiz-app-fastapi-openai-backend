@@ -11,34 +11,42 @@ logger = logging.getLogger(__name__)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-pro')
 
-async def analyze_chapters(texts: List[str]) -> List[Dict[str, Any]]:
+async def analyze_chapters(text: str) -> List[Dict[str, Any]]:
+    """
+    Analyze the given text to identify chapters or sections.
+    Returns a list of chapters with their confidence scores.
+    """
     try:
-        chapters = []
-        for text in texts:
-            prompt = f"""Analyze the following text and identify the main chapters or sections.
-            For each chapter, provide a confidence score between 0 and 1.
-            Format the response as a JSON array of objects with the following structure:
-            [
-                {{
-                    "name": "chapter name",
-                    "confidence": confidence_score
-                }}
-            ]
-            
-            Text:
-            {text}
-            """
-            
-            response = await model.generate_content(prompt)
-            page_chapters = parse_chapters(response.text)
-            chapters.extend(page_chapters)
+        prompt = f"""Analyze the following text and identify the main chapters or sections.
+        For each chapter, provide a confidence score between 0 and 1.
+        Format the response as a JSON array of objects with the following structure:
+        [
+            {{
+                "name": "chapter name",
+                "confidence": confidence_score
+            }}
+        ]
+        
+        Text:
+        {text}
+        """
+        
+        response = await model.generate_content(prompt)
+        chapters = parse_chapters(response.text)
+        
+        if not chapters:
+            logger.warning("No chapters identified in text")
+            return [{"name": "General Content", "confidence": 1.0}]
         
         return chapters
     except Exception as e:
         logger.error(f"Error analyzing chapters: {str(e)}")
-        raise Exception(f"Failed to analyze chapters: {str(e)}")
+        return [{"name": "General Content", "confidence": 1.0}]
 
 def parse_chapters(text: str) -> List[Dict[str, Any]]:
+    """
+    Parse the AI response into a structured list of chapters.
+    """
     try:
         import json
         import re
