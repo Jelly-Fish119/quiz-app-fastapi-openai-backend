@@ -8,6 +8,14 @@ from pydantic import BaseModel
 import os
 import shutil
 from pathlib import Path
+import logging
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -145,16 +153,16 @@ async def generate_quiz(
             # Extract topics for all pages in a single call
             try:
                 topics = extract_topics_per_page(pages)
-                print(f"Extracted topics: {topics}")  # Debug log
+                logger.info(f"Extracted topics: {topics}")
             except Exception as e:
-                print(f"Error extracting topics: {str(e)}")  # Debug log
+                logger.error(f"Error extracting topics: {str(e)}")
                 topics = {}
             
             try:
                 chapters = analyze_chapters(pages)
-                print(f"Extracted chapters: {chapters}")  # Debug log
+                logger.info(f"Extracted chapters: {chapters}")
             except Exception as e:
-                print(f"Error analyzing chapters: {str(e)}")  # Debug log
+                logger.error(f"Error analyzing chapters: {str(e)}")
                 chapters = {}
             
             # Get the topic for the current page or use the first available topic
@@ -165,9 +173,9 @@ async def generate_quiz(
                     topic = next(iter(topics.values()))
                 else:
                     topic = "General Knowledge"
-                print(f"Selected topic: {topic}")  # Debug log
+                logger.info(f"Selected topic: {topic}")
             except Exception as e:
-                print(f"Error selecting topic: {str(e)}")  # Debug log
+                logger.error(f"Error selecting topic: {str(e)}")
                 topic = "General Knowledge"
             
             # Get the chapter for the current page or use the first available chapter
@@ -178,16 +186,16 @@ async def generate_quiz(
                     chapter = next(iter(chapters.values()))
                 else:
                     chapter = "General Knowledge"
-                print(f"Selected chapter: {chapter}")  # Debug log
+                logger.info(f"Selected chapter: {chapter}")
             except Exception as e:
-                print(f"Error selecting chapter: {str(e)}")  # Debug log
+                logger.error(f"Error selecting chapter: {str(e)}")
                 chapter = "General Knowledge"
             
             # Generate quiz questions
             try:
                 quiz_questions = generate_quiz_questions(text_content, topic, chapter)
             except Exception as e:
-                print(f"Error generating quiz questions: {str(e)}")  # Debug log
+                logger.error(f"Error generating quiz questions: {str(e)}")
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to generate quiz questions: {str(e)}"

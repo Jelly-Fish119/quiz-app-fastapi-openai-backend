@@ -4,6 +4,9 @@ from typing import List, Dict, Union
 import logging
 import json
 
+# Configure logging
+logger = logging.getLogger(__name__)
+
 genai.configure(api_key=GOOGLE_API_KEY)
 
 QuestionType = Union[
