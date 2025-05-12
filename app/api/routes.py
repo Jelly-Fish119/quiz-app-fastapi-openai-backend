@@ -8,6 +8,7 @@ import logging
 import google.generativeai as genai
 import os
 import json
+import re
 
 # Configure logging
 logging.basicConfig(
@@ -34,6 +35,25 @@ class QuizGenerationRequest(BaseModel):
     text: str
     topic: str
     chapter: str
+
+def extract_json_from_text(text: str) -> Dict[str, Any]:
+    """
+    Extract JSON from text, handling potential formatting issues.
+    """
+    try:
+        # First try direct JSON parsing
+        return json.loads(text)
+    except json.JSONDecodeError:
+        try:
+            # Try to find JSON object in the text
+            json_match = re.search(r'\{[\s\S]*\}', text)
+            if json_match:
+                return json.loads(json_match.group())
+            else:
+                raise ValueError("No JSON object found in response")
+        except Exception as e:
+            logger.error(f"Failed to extract JSON from response: {text}")
+            raise ValueError(f"Invalid response format: {str(e)}")
 
 async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
     """
@@ -63,7 +83,7 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
         4. Avoid generic chapter names
         5. Provide a confidence score between 0 and 1 for each chapter
         
-        Format the response as a JSON object with the following structure:
+        IMPORTANT: Respond ONLY with a valid JSON object in the following format, with no additional text:
         {{
             "pages": [
                 {{
@@ -89,21 +109,44 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
         """
         
         response = model.generate_content(prompt)
-        result = json.loads(response.text)
+        if not response or not response.text:
+            raise ValueError("Empty response from model")
+            
+        logger.info(f"Raw model response: {response.text}")
+        result = extract_json_from_text(response.text)
         
+        # Validate the response structure
+        if not isinstance(result, dict) or 'pages' not in result:
+            raise ValueError("Invalid response structure: missing 'pages' key")
+            
         # Filter out low confidence items and sort by confidence for each page
         for page_result in result['pages']:
+            if not isinstance(page_result, dict):
+                continue
+                
+            # Ensure required fields exist
+            page_result.setdefault('topics', [])
+            page_result.setdefault('chapters', [])
+            
             # Filter and sort topics
             page_result['topics'] = [
                 t for t in page_result['topics'] 
-                if t['confidence'] >= 0.6
+                if isinstance(t, dict) and 
+                'name' in t and 
+                'confidence' in t and 
+                isinstance(t['confidence'], (int, float)) and
+                t['confidence'] >= 0.6
             ]
             page_result['topics'].sort(key=lambda x: x['confidence'], reverse=True)
             
             # Filter and sort chapters
             page_result['chapters'] = [
                 c for c in page_result['chapters'] 
-                if c['confidence'] >= 0.6
+                if isinstance(c, dict) and 
+                'name' in c and 
+                'confidence' in c and 
+                isinstance(c['confidence'], (int, float)) and
+                c['confidence'] >= 0.6
             ]
             page_result['chapters'].sort(key=lambda x: x['confidence'], reverse=True)
         
