@@ -1,7 +1,9 @@
 import google.generativeai as genai
 import os
 import logging
+import asyncio
 from typing import List, Dict, Any
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -10,6 +12,29 @@ logger = logging.getLogger(__name__)
 # Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-pro')
+
+class RateLimitError(Exception):
+    """Custom exception for rate limiting errors"""
+    pass
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    retry=retry_if_exception_type(RateLimitError),
+    reraise=True
+)
+async def _generate_content_with_retry(prompt: str) -> str:
+    """
+    Generate content with retry logic for rate limiting.
+    """
+    try:
+        response = await model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        if "429" in str(e) or "quota" in str(e).lower():
+            logger.warning(f"Rate limit hit, will retry: {str(e)}")
+            raise RateLimitError(str(e))
+        raise
 
 async def extract_topics(text: str) -> List[Dict[str, Any]]:
     """
@@ -47,8 +72,8 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
         {text}
         """
         
-        response = await model.generate_content(prompt)
-        topics = parse_topics(response.text)
+        response_text = await _generate_content_with_retry(prompt)
+        topics = parse_topics(response_text)
         
         if not topics:
             logger.warning("No topics extracted from text, trying with a more specific prompt")
@@ -70,8 +95,8 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
             ]
             """
             
-            response = await model.generate_content(specific_prompt)
-            topics = parse_topics(response.text)
+            response_text = await _generate_content_with_retry(specific_prompt)
+            topics = parse_topics(response_text)
         
         if not topics:
             logger.error("Failed to extract specific topics")
@@ -85,6 +110,9 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
             raise ValueError("No topics met the confidence threshold")
         
         return topics
+    except RateLimitError as e:
+        logger.error(f"Rate limit exceeded after retries: {str(e)}")
+        raise Exception("API rate limit exceeded. Please try again in a few minutes.")
     except Exception as e:
         logger.error(f"Error extracting topics: {str(e)}")
         raise Exception(f"Failed to extract topics: {str(e)}")
