@@ -5,6 +5,9 @@ from app.services.quiz_generator import generate_quiz_questions
 from typing import Dict, Any, List
 from pydantic import BaseModel
 import logging
+import google.generativeai as genai
+import os
+import json
 
 # Configure logging
 logging.basicConfig(
@@ -12,6 +15,10 @@ logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 logger = logging.getLogger(__name__)
+
+# Configure Gemini
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-1.5-pro')
 
 router = APIRouter()
 
@@ -28,29 +35,92 @@ class QuizGenerationRequest(BaseModel):
     topic: str
     chapter: str
 
+async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
+    """
+    Analyze all pages' content in a single call to extract topics and chapters.
+    """
+    try:
+        # Combine all pages' text with page numbers
+        combined_text = "\n\n".join([
+            f"=== Page {page.page_number} ===\n{page.text}"
+            for page in pages
+        ])
+
+        prompt = f"""You are an expert at analyzing educational content.
+        Analyze the following text from multiple pages and identify topics and chapters for each page.
+        
+        Guidelines for Topics:
+        1. Identify 3-5 most important topics per page
+        2. Each topic should be specific and detailed
+        3. Topics should be relevant to the content
+        4. Avoid generic topics
+        5. Provide a confidence score between 0 and 1 for each topic
+        
+        Guidelines for Chapters:
+        1. Identify 2-3 most relevant chapters or sections per page
+        2. Each chapter should be specific and detailed
+        3. Chapters should be relevant to the content
+        4. Avoid generic chapter names
+        5. Provide a confidence score between 0 and 1 for each chapter
+        
+        Format the response as a JSON object with the following structure:
+        {{
+            "pages": [
+                {{
+                    "page_number": page_number,
+                    "topics": [
+                        {{
+                            "name": "specific topic name",
+                            "confidence": confidence_score
+                        }}
+                    ],
+                    "chapters": [
+                        {{
+                            "name": "specific chapter name",
+                            "confidence": confidence_score
+                        }}
+                    ]
+                }}
+            ]
+        }}
+        
+        Text to analyze (each section is marked with page numbers):
+        {combined_text}
+        """
+        
+        response = await model.generate_content(prompt)
+        result = json.loads(response.text)
+        
+        # Filter out low confidence items and sort by confidence for each page
+        for page_result in result['pages']:
+            # Filter and sort topics
+            page_result['topics'] = [
+                t for t in page_result['topics'] 
+                if t['confidence'] >= 0.6
+            ]
+            page_result['topics'].sort(key=lambda x: x['confidence'], reverse=True)
+            
+            # Filter and sort chapters
+            page_result['chapters'] = [
+                c for c in page_result['chapters'] 
+                if c['confidence'] >= 0.6
+            ]
+            page_result['chapters'].sort(key=lambda x: x['confidence'], reverse=True)
+        
+        return result
+    except Exception as e:
+        logger.error(f"Error analyzing pages content: {str(e)}")
+        raise Exception(f"Failed to analyze pages content: {str(e)}")
+
 @router.post("/pdf/analyze-pages")
 async def analyze_pages(request: PageAnalysisRequest) -> Dict[str, Any]:
     """
-    Analyze multiple pages to extract topics and chapters.
+    Analyze all pages in a single call to extract topics and chapters.
     """
     try:
-        results = []
-        for page in request.pages:
-            # Extract topics
-            topics = await extract_topics(page.text)
-            
-            # Analyze chapters
-            chapters = await analyze_chapters(page.text)
-            
-            results.append({
-                "page_number": page.page_number,
-                "topics": topics,
-                "chapters": chapters
-            })
-        
-        return {
-            "pages": results
-        }
+        # Analyze all pages content in one call
+        analysis = await analyze_all_pages(request.pages)
+        return analysis
     except Exception as e:
         logger.error(f"Error analyzing pages: {str(e)}")
         raise HTTPException(
