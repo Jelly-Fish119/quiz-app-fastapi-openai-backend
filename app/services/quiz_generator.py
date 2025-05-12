@@ -12,23 +12,23 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.0-pro')
 
 
-async def generate_quiz_questions(text: str, topic: str, chapter: str) -> Dict[str, List[Dict[str, Any]]]:
+async def generate_quiz_questions(text: str, chapter: str, topics: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
     """
     Generate multiple types of quiz questions based on the given text, topic, and chapter.
     Returns a dictionary containing different types of questions.
     """
     try:
         # Generate multiple choice questions
-        mc_questions = await generate_multiple_choice(text, topic, chapter)
+        mc_questions = await generate_multiple_choice(text, topics, chapter)
         
         # Generate true/false questions
-        tf_questions = await generate_true_false(text, topic, chapter)
+        tf_questions = await generate_true_false(text, topics, chapter)
         
         # Generate fill in the blanks questions
-        fb_questions = await generate_fill_blanks(text, topic, chapter)
+        fb_questions = await generate_fill_blanks(text, topics, chapter)
         
         # Generate short answer questions
-        sa_questions = await generate_short_answer(text, topic, chapter)
+        sa_questions = await generate_short_answer(text, topics, chapter)
         
         return {
             "multiple_choice": mc_questions,

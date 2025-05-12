@@ -99,7 +99,8 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
                             "name": "specific chapter name",
                             "confidence": confidence_score
                         }}
-                    ]
+                    ],
+                    "text": text
                 }}
             ]
         }}
@@ -180,13 +181,13 @@ async def generate_quiz(request: QuizGenerationRequest) -> Dict[str, Any]:
         # Generate quiz questions
         questions = await generate_quiz_questions(
             request.text,
-            request.topic,
-            request.chapter
+            request.chapter,
+            request.topics
         )
         
         return {
             "page_number": request.page_number,
-            "topic": request.topic,
+            "topics": request.topics,
             "chapter": request.chapter,
             "questions": questions
         }
