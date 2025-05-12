@@ -126,19 +126,35 @@ async def analyze_pages(request: PageAnalysisRequest):
         # Extract topics for all pages
         topics = await extract_topics_per_page([page.text for page in request.pages])
         
+        # Add page numbers to topics
+        topics_with_pages = []
+        for i, topic in enumerate(topics):
+            topics_with_pages.append({
+                **topic,
+                "pageNumber": request.pages[i].page_number
+            })
+        
         # Analyze chapters
         chapters = await analyze_chapters([page.text for page in request.pages])
+        
+        # Add page numbers to chapters
+        chapters_with_pages = []
+        for i, chapter in enumerate(chapters):
+            chapters_with_pages.append({
+                **chapter,
+                "pageNumber": request.pages[i].page_number
+            })
         
         # Generate quiz questions
         questions = await generate_quiz_questions(
             [page.text for page in request.pages],
-            topics,
-            chapters
+            topics_with_pages,
+            chapters_with_pages
         )
         
         return {
-            "topics": topics,
-            "chapters": chapters,
+            "topics": topics_with_pages,
+            "chapters": chapters_with_pages,
             "questions": questions
         }
     except Exception as e:
