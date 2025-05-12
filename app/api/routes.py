@@ -179,11 +179,12 @@ async def generate_quiz(request: QuizGenerationRequest) -> Dict[str, Any]:
     """
     try:
         # Generate quiz questions
-        questions = await generate_quiz_questions(
-            request.text,
-            request.chapter,
-            request.topics
-        )
+        for page in request.pages:
+
+            questions = await generate_quiz_questions(
+                page.text,
+                page.chapters
+            )
         
         return {
             "page_number": request.page_number,
