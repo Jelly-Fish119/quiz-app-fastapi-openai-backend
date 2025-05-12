@@ -64,14 +64,32 @@ async def complete_upload(request: CompleteUploadRequest) -> Dict[str, Any]:
         with open(final_path, "rb") as pdf_file:
             pdf_content = pdf_file.read()
             pages = extract_pages_from_pdf(pdf_content)
+            
+            if not pages:
+                raise HTTPException(
+                    status_code=400,
+                    detail="Failed to extract text from PDF. The file might be empty or corrupted."
+                )
+            
+            # Extract topics for all pages in a single call
             topics = extract_topics_per_page(pages)
+            
+            # Create a topics dictionary with page numbers
+            topics_dict = {}
+            for i in range(len(pages)):
+                if i in topics:
+                    topics_dict[i] = topics[i]
+                else:
+                    topics_dict[i] = "General Knowledge"
+            
+            # Analyze chapters
             chapters = analyze_chapters(pages)
         
         return {
             "message": "File upload and analysis completed successfully",
             "chapters": chapters,
-            "topics": topics,
-            "fileName": request.fileName  # Return the filename for future use
+            "topics": topics_dict,
+            "fileName": request.fileName
         }
     except Exception as e:
         # Clean up in case of error
@@ -124,16 +142,36 @@ async def generate_quiz(
                     detail="No text content found in the selected page(s)."
                 )
             
-            # Extract topic from the content
-            topics = extract_topics_per_page([text_content])
-            chapters = analyze_chapters([text_content])
-            topic = topics[0] if topics else "General Knowledge"
+            # Extract topics for all pages in a single call
+            try:
+                topics = extract_topics_per_page(pages)
+                print(f"Extracted topics: {topics}")  # Debug log
+            except Exception as e:
+                print(f"Error extracting topics: {str(e)}")  # Debug log
+                topics = {}
+            
+            chapters = analyze_chapters(pages)
+            
+            # Get the topic for the current page or use the first available topic
+            try:
+                if page is not None and page in topics:
+                    topic = topics[page]
+                elif topics:
+                    topic = next(iter(topics.values()))
+                else:
+                    topic = "General Knowledge"
+                print(f"Selected topic: {topic}")  # Debug log
+            except Exception as e:
+                print(f"Error selecting topic: {str(e)}")  # Debug log
+                topic = "General Knowledge"
+            
             chapter = chapters[0] if chapters else "General Knowledge"
             
             # Generate quiz questions
             try:
                 quiz_questions = generate_quiz_questions(text_content, topic, chapter)
             except Exception as e:
+                print(f"Error generating quiz questions: {str(e)}")  # Debug log
                 raise HTTPException(
                     status_code=500,
                     detail=f"Failed to generate quiz questions: {str(e)}"
