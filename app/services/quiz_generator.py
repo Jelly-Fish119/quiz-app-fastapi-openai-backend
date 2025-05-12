@@ -70,7 +70,7 @@ async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters:
     """Generate true/false questions"""
     try:
         prompt = f"""Generate 3 true/false questions based on the following text.
-        The questions should focus on the topics: {'\n\n'.join([f"{topic}" for topic in topics])}" within the chapters: "{'\n\n'.join([f"{chapter}" for chapter in chapters])}"".
+        The questions should focus on the topics: {'\n\n'.join([f"{topic}" for topic in topics])}" within the chapters: {'\n\n'.join([f"{chapter}" for chapter in chapters])}".
         
         Format the response as a JSON array of objects with the following structure:
         [
