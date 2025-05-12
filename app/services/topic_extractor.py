@@ -17,17 +17,27 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
     Returns a list of topics with their confidence scores.
     """
     try:
-        prompt = f"""Analyze the following text and identify the main topics or themes.
+        prompt = f"""You are an expert at analyzing educational content and identifying specific topics.
+        Analyze the following text and identify the main topics or themes.
+        Focus on extracting specific, detailed topics rather than general ones.
+        
+        Guidelines:
+        1. Identify 3-5 most important topics
+        2. Each topic should be specific and detailed (e.g., "Neural Network Architecture" instead of "Machine Learning")
+        3. Topics should be relevant to the content
+        4. Avoid generic topics like "General Knowledge" or "General Content"
+        5. Consider the context and domain of the text
+        
         For each topic, provide a confidence score between 0 and 1.
         Format the response as a JSON array of objects with the following structure:
         [
             {{
-                "name": "topic name",
+                "name": "specific topic name",
                 "confidence": confidence_score
             }}
         ]
         
-        Text:
+        Text to analyze:
         {text}
         """
         
@@ -35,8 +45,34 @@ async def extract_topics(text: str) -> List[Dict[str, Any]]:
         topics = parse_topics(response.text)
         
         if not topics:
-            logger.warning("No topics extracted from text")
+            logger.warning("No topics extracted from text, trying with a more specific prompt")
+            # Try with a more specific prompt if the first attempt fails
+            specific_prompt = f"""Extract specific topics from this educational content.
+            Focus on technical terms, concepts, and specific subject areas.
+            Avoid general topics.
+            
+            Text:
+            {text}
+            
+            Return as JSON array:
+            [
+                {{
+                    "name": "specific topic",
+                    "confidence": score
+                }}
+            ]
+            """
+            
+            response = await model.generate_content(specific_prompt)
+            topics = parse_topics(response.text)
+        
+        if not topics:
+            logger.error("Failed to extract specific topics")
             return [{"name": "General Knowledge", "confidence": 1.0}]
+        
+        # Filter out low confidence topics and sort by confidence
+        topics = [t for t in topics if t['confidence'] >= 0.6]
+        topics.sort(key=lambda x: x['confidence'], reverse=True)
         
         return topics
     except Exception as e:
@@ -65,10 +101,12 @@ def parse_topics(text: str) -> List[Dict[str, Any]]:
                 # Ensure confidence is a float between 0 and 1
                 confidence = float(topic['confidence'])
                 if 0 <= confidence <= 1:
-                    valid_topics.append({
-                        'name': topic['name'],
-                        'confidence': confidence
-                    })
+                    # Skip generic topics
+                    if topic['name'].lower() not in ['general knowledge', 'general content', 'general topic']:
+                        valid_topics.append({
+                            'name': topic['name'],
+                            'confidence': confidence
+                        })
         
         return valid_topics
     except Exception as e:
