@@ -170,8 +170,9 @@ def parse_questions(text: str) -> List[Dict[str, Any]]:
         json_text = json_match.group()
         # Sanitize bad backslashes (escape invalid ones)
         sanitized_text = re.sub(r'\\(?![\\/"bfnrtu])', r'\\\\', json_text)
-
+        logger.info(f"In parse_questions sanitized_text: {sanitized_text}")
         questions = json.loads(sanitized_text)
+        logger.info(f"In parse_questions questions: {questions}")
 
         # Validate question structure
         valid_questions = []
