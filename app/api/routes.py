@@ -88,6 +88,7 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
             "pages": [
                 {{
                     "page_number": page_number,
+                    "text": text
                     "topics": [
                         {{
                             "name": "specific topic name",
