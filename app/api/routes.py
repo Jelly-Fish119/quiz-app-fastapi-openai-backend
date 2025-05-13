@@ -31,10 +31,7 @@ class PageAnalysisRequest(BaseModel):
     pages: List[Page]
 
 class QuizGenerationRequest(BaseModel):
-    page_number: int
-    text: str
-    topic: str
-    chapter: str
+    pages: List[Dict[str, Any]]
 
 def extract_json_from_text(text: str) -> Dict[str, Any]:
     """
