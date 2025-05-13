@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 # model = genai.GenerativeModel('gemini-1.5-pro')
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
-model = openai.models('gpt-3.5-turbo')
+
 class RateLimitError(Exception):
     """Custom exception for rate limiting errors"""
     pass
@@ -116,7 +116,11 @@ async def generate_quiz_questions(pages: List[Dict[str, Any]]) -> List[Dict[str,
         Here is the input JSON data:
         {json.dumps(pages, indent=2)}
         """
-        response = await _generate_quiz_with_retry(prompt)
+        # response = await _generate_quiz_with_retry(prompt)
+        response = openai.ChatCompletion.create(
+            model='gpt-3.5-turbo',
+            messages=[{"role": "user", "content": prompt}]
+        )
         return parse_full_page_quiz(response)
     except Exception as e:
         logger.error(f"Error generating full quiz questions: {str(e)}")
