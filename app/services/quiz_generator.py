@@ -45,7 +45,7 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
     try:
         topics_text = '\n\n'.join([topic.name for topic in topics])
         chapters_text = '\n\n'.join([chapter.name for chapter in chapters])
-
+        logger.info(f"chapters_text: {chapters_text} \n\n topics_text: {topics_text}")
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         
