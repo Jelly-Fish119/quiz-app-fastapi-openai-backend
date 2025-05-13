@@ -41,19 +41,28 @@ class QuizGenerationRequest(BaseModel):
 
 def extract_json_from_text(text: str) -> Dict[str, Any]:
     """
-    Extract JSON from text, handling potential formatting issues.
+    Extract JSON from Gemini's output, sanitizing invalid backslashes.
     """
+    import json
+    import re
+
     try:
         # First try direct JSON parsing
         return json.loads(text)
     except json.JSONDecodeError:
         try:
-            # Try to find JSON object in the text
+            # Try to extract the JSON object from inside the text
             json_match = re.search(r'\{[\s\S]*\}', text)
-            if json_match:
-                return json.loads(json_match.group())
-            else:
+            if not json_match:
                 raise ValueError("No JSON object found in response")
+
+            raw_json = json_match.group()
+
+            # Fix: Sanitize invalid backslashes (anything not part of \\ or \")
+            sanitized = re.sub(r'\\(?![\\/"bfnrtu])', r'\\\\', raw_json)
+
+            # Now try to load the sanitized JSON
+            return json.loads(sanitized)
         except Exception as e:
             logger.error(f"Failed to extract JSON from response: {text}")
             raise ValueError(f"Invalid response format: {str(e)}")
@@ -188,7 +197,7 @@ async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
                 "page_number": page.page_number,
                 "topics": page.topics,
                 "chapters": page.chapters,
-                "text": page.text
+                "text": page.text,
             })
         pages_data_string = json.dumps(pages_data)
         questions = await generate_quiz_questions(
