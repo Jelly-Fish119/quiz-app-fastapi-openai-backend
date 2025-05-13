@@ -100,7 +100,6 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
                             "confidence": confidence_score
                         }}
                     ],
-                    "text": text,
                 }}
             ]
         }}
