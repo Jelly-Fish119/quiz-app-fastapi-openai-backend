@@ -170,7 +170,11 @@ def parse_questions(text: str) -> List[Dict[str, Any]]:
         if not json_match:
             return []
         
-        questions = json.loads(json_match.group())
+        json_text = json_match.group()
+        # Sanitize bad backslashes (escape invalid ones)
+        sanitized_text = re.sub(r'\\(?![\\nrt"/])', r'\\\\', json_text)
+
+        questions = json.loads(sanitized_text)
         
         # Validate question structure
         valid_questions = []
