@@ -173,7 +173,7 @@ async def analyze_pages(request: PageAnalysisRequest) -> Dict[str, Any]:
         )
 
 @router.post("/pdf/generate-quiz")
-async def generate_quiz(request: QuizGenerationRequest) -> Dict[str, Any]:
+async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
     """
     Generate quiz questions for a specific page.
     """
@@ -184,7 +184,8 @@ async def generate_quiz(request: QuizGenerationRequest) -> Dict[str, Any]:
 
             questions = await generate_quiz_questions(
                 page.text,
-                page.chapters
+                page.chapters,
+                page.topics,
             )
             result.append({
                 "page_number": page.page_number,
