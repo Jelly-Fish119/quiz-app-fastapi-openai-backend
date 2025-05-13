@@ -12,8 +12,8 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configure Gemini
-# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-# model = genai.GenerativeModel('gemini-1.5-pro')
+genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+model = genai.GenerativeModel('gemini-1.5-pro')
 
 openai.api_key = os.getenv('OPENAI_API_KEY')
 
@@ -116,11 +116,7 @@ async def generate_quiz_questions(pages: List[Dict[str, Any]]) -> List[Dict[str,
         Here is the input JSON data:
         {json.dumps(pages, indent=2)}
         """
-        # response = await _generate_quiz_with_retry(prompt)
-        response = openai.ChatCompletion.create(
-            model='gpt-3.5-turbo',
-            messages=[{"role": "user", "content": prompt}]
-        )
+        response = await _generate_quiz_with_retry(prompt)
         return parse_full_page_quiz(response)
     except Exception as e:
         logger.error(f"Error generating full quiz questions: {str(e)}")
