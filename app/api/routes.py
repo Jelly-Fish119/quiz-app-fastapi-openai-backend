@@ -94,7 +94,21 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
         3. Chapters should be relevant to the content
         4. Avoid generic chapter names
         5. Provide a confidence score between 0 and 1 for each chapter
-        
+
+        Generate quiz questions **per page**.
+        Each element in the list represents a single page with associated text, topics, and chapter context.
+
+        Guidelines for Quizzes for each page:
+        - Use the `text` to generate:
+        - 5 Multiple Choice Questions (MCQs)
+        - 3 True/False Questions
+        - 3 Fill in the Blanks Questions
+        - 2 Short Answer Questions
+
+        - Structure your output as a **JSON array**, where each item corresponds to a page with the following format:
+
+        [
+
         IMPORTANT: Respond ONLY with a valid JSON object in the following format, with no additional text:
         {{
             "pages": [
@@ -113,6 +127,44 @@ async def analyze_all_pages(pages: List[Page]) -> Dict[str, Any]:
                             "confidence": confidence_score
                         }}
                     ],
+                    "questions": 
+                        {{
+                            "multiple_choice": [
+                                {{
+                                    "question": "...",
+                                    "options": ["...", "...", "...", "..."],
+                                    "correct_answer": "...",
+                                    "explanation": "..."
+                                }},
+                                ...
+                            ],
+                            "true_false": [
+                                {{
+                                    "question": "...",
+                                    "options": ["true", "false"],
+                                    "correct_answer": "...",
+                                    "explanation": "..."
+                                }},
+                                ...
+                            ],
+                            "fill_in_the_blanks": [
+                                {{
+                                    "question": "Fill in the blank: ... _____ ...",
+                                    "options": [],
+                                    "correct_answer": "...",
+                                    "explanation": "..."
+                                }},
+                                ...
+                            ],
+                            "short_answer": [
+                                {{
+                                    "question": "...",
+                                    "options": [],
+                                    "correct_answer": "...",
+                                    "explanation": "..."
+                                }},
+                            ]
+                        }}
                 }}
             ]
         }}

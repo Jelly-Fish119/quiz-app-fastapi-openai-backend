@@ -58,7 +58,7 @@ async def analyze_chapters(text: str) -> List[Dict[str, Any]]:
         4. Avoid generic chapters like "General Content" or "General Chapter" or "General Knowledge"
         5. Consider the context and domain of the text
         6. If you can't identify specific chapters, return an empty array instead of generic chapters
-        
+
         For each chapter, provide a confidence score between 0 and 1.
         Format the response as a JSON array of objects with the following structure:
         [
