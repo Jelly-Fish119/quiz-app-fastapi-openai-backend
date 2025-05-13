@@ -71,6 +71,7 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
 
 async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate true/false questions"""
+    logger.info(f"Generating true/false questions for page {page_number} and chapters {chapters} and topics {topics}")
     try:
         topics_text = ','.join([topic.name for topic in topics])
         chapters_text = ','.join([chapter.name for chapter in chapters])
