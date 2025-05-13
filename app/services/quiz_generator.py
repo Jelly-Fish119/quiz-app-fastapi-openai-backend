@@ -12,7 +12,7 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.0-pro')
 
 
-async def generate_quiz_questions(text: str, chapters: List[Dict[str, Any]], topics: List[Dict[str, Any]]) -> Dict[str, List[Dict[str, Any]]]:
+async def generate_quiz_questions(text: str, chapters: List[Dict[str, float]], topics: List[Dict[str, float]]) -> Dict[str, List[Dict[str, Any]]]:
     """
     Generate multiple types of quiz questions based on the given text, topic, and chapter.
     Returns a dictionary containing different types of questions.
@@ -43,8 +43,8 @@ async def generate_quiz_questions(text: str, chapters: List[Dict[str, Any]], top
 async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate multiple choice questions"""
     try:
-        topics_text = ','.join([topic.name for topic in topics])
-        chapters_text = ','.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic["name"] for topic in topics])
+        chapters_text = ','.join([chapter["name"] for chapter in chapters])
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         
@@ -73,8 +73,8 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
 async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate true/false questions"""
     try:
-        topics_text = ','.join([topic.name for topic in topics])
-        chapters_text = ','.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic["name"] for topic in topics])
+        chapters_text = ','.join([chapter["name"] for chapter in chapters])
 
         prompt = f"""Generate 3 true/false questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
@@ -102,8 +102,8 @@ async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters:
 async def generate_fill_blanks(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate fill in the blanks questions"""
     try:
-        topics_text = ','.join([topic.name for topic in topics])
-        chapters_text = ','.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic["name"] for topic in topics])
+        chapters_text = ','.join([chapter["name"] for chapter in chapters])
         prompt = f"""Generate 3 fill in the blanks questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         
@@ -130,8 +130,8 @@ async def generate_fill_blanks(text: str, topics: List[Dict[str, Any]], chapters
 async def generate_short_answer(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate short answer questions"""
     try:
-        topics_text = ','.join([topic.name for topic in topics])
-        chapters_text = ','.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic["name"] for topic in topics])
+        chapters_text = ','.join([chapter["name"] for chapter in chapters])
         prompt = f"""Generate 2 short answer questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         Format the response as a JSON array of objects with the following structure:
