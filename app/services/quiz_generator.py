@@ -43,8 +43,8 @@ async def generate_quiz_questions(text: str, chapters: List[Dict[str, Any]], top
 async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate multiple choice questions"""
     try:
-        topics_text = '\n\n'.join([topic.name for topic in topics])
-        chapters_text = '\n\n'.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic.name for topic in topics])
+        chapters_text = ','.join([chapter.name for chapter in chapters])
         logger.info(f"""chapters_text: {chapters_text}
                      topics_text: {topics_text}""")
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
@@ -72,7 +72,8 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
 
 async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate true/false questions"""
-    logger.info(f"chapters: {chapters} \n\n topics: {topics}")
+    logger.info(f"""chapters: {chapters}, 
+                 topics: {topics}""")
     try:
         topics_text = ','.join([topic.name for topic in topics])
         chapters_text = ','.join([chapter.name for chapter in chapters])
