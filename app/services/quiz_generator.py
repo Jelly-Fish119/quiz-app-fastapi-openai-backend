@@ -1,4 +1,5 @@
 import google.generativeai as genai
+import openai
 import os
 import logging
 import json
@@ -11,9 +12,11 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 # Configure Gemini
-genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-pro')
+# genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+# model = genai.GenerativeModel('gemini-1.5-pro')
 
+openai.api_key = os.getenv('OPENAI_API_KEY')
+model = openai.models('gpt-3.5-turbo')
 class RateLimitError(Exception):
     """Custom exception for rate limiting errors"""
     pass
