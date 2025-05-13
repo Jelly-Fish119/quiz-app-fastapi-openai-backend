@@ -72,8 +72,8 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
 async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate true/false questions"""
     try:
-        topics_text = '\n\n'.join([topic.name for topic in topics])
-        chapters_text = '\n\n'.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic.name for topic in topics])
+        chapters_text = ','.join([chapter.name for chapter in chapters])
 
         prompt = f"""Generate 3 true/false questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
@@ -101,8 +101,8 @@ async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters:
 async def generate_fill_blanks(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate fill in the blanks questions"""
     try:
-        topics_text = '\n\n'.join([topic.name for topic in topics])
-        chapters_text = '\n\n'.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic.name for topic in topics])
+        chapters_text = ','.join([chapter.name for chapter in chapters])
         prompt = f"""Generate 3 fill in the blanks questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         
@@ -129,8 +129,8 @@ async def generate_fill_blanks(text: str, topics: List[Dict[str, Any]], chapters
 async def generate_short_answer(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate short answer questions"""
     try:
-        topics_text = '\n\n'.join([topic.name for topic in topics])
-        chapters_text = '\n\n'.join([chapter.name for chapter in chapters])
+        topics_text = ','.join([topic.name for topic in topics])
+        chapters_text = ','.join([chapter.name for chapter in chapters])
         prompt = f"""Generate 2 short answer questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         
