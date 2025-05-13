@@ -186,7 +186,7 @@ def parse_questions(text: str) -> List[Dict[str, Any]]:
                         valid_questions.append(question)
                     elif len(question['options']) == 0:
                         valid_questions.append(question)
-        
+        print('-------- valide questions ----------\n', valid_questions)
         return valid_questions
     except Exception as e:
         logger.error(f"Error parsing questions: {str(e)}")
