@@ -2,6 +2,7 @@ import google.generativeai as genai
 import os
 import logging
 from typing import List, Dict, Any
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -11,6 +12,29 @@ logger = logging.getLogger(__name__)
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-pro')
 
+class RateLimitError(Exception):
+    """Custom exception for rate limiting errors"""
+    pass
+
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=4, max=60),
+    retry=retry_if_exception_type(RateLimitError),
+    reraise=True
+)
+
+async def _generate_quiz_with_retry(prompt: str) -> str:
+    """
+    Generate content with retry logic for rate limiting.
+    """
+    try:
+        response = await model.generate_content(prompt)
+        return response.text
+    except Exception as e:
+        if "429" in str(e) or "quota" in str(e).lower():
+            logger.warning(f"Rate limit hit, will retry: {str(e)}")
+            raise RateLimitError(str(e))
+        raise
 
 async def generate_quiz_questions(text: str) -> Dict[str, List[Dict[str, Any]]]:
     """
@@ -23,19 +47,19 @@ async def generate_quiz_questions(text: str) -> Dict[str, List[Dict[str, Any]]]:
         mc_questions = await generate_multiple_choice(text)
         
         # Generate true/false questions
-        # tf_questions = await generate_true_false(text)
+        tf_questions = await generate_true_false(text)
         
-        # # Generate fill in the blanks questions
-        # fb_questions = await generate_fill_blanks(text)
+        # Generate fill in the blanks questions
+        fb_questions = await generate_fill_blanks(text)
         
-        # # Generate short answer questions
-        # sa_questions = await generate_short_answer(text)
+        # Generate short answer questions
+        sa_questions = await generate_short_answer(text)
         
         return {
             "multiple_choice": mc_questions,
-            # "true_false": tf_questions,
-            # "fill_blanks": fb_questions,
-            # "short_answer": sa_questions
+            "true_false": tf_questions,
+            "fill_blanks": fb_questions,
+            "short_answer": sa_questions
         }
     except Exception as e:
         logger.error(f"Error generating quiz questions: {str(e)}")
@@ -45,15 +69,16 @@ async def generate_multiple_choice(text: str) -> List[Dict[str, Any]]:
     """Generate multiple choice questions"""
     try:
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
-        The questions should focus on the topics within the chapters.
+        The questions should focus on the topic['name'] in topics list within the chapter['name'] in chapters list.
         
-        Format the response as a JSON array of objects with the following structure:
+        Format the response as a JSON array of objects regarding per page with the following structure:
         [
             {{
                 "question": "question text",
                 "options": ["option1", "option2", "option3", "option4"],
                 "correct_answer": "correct option",
-                "explanation": "explanation of the correct answer"
+                "explanation": "explanation of the correct answer",
+                "page_number": page_number
             }}
         ]
         Make sure all backslashes in strings are properly escaped as double backslashes (\\), and the output is valid JSON.
@@ -62,7 +87,7 @@ async def generate_multiple_choice(text: str) -> List[Dict[str, Any]]:
         {text}
         """
         
-        response = await model.generate_content(prompt)
+        response = await _generate_quiz_with_retry(prompt)
         print(f"In generate_multiple_choice response: {response.text}")
         return parse_questions(response.text)
     except Exception as e:
@@ -74,7 +99,7 @@ async def generate_true_false(text: str) -> List[Dict[str, Any]]:
     try:
 
         prompt = f"""Generate 3 true/false questions based on the following text.
-        The questions should focus on the topics within the chapters.
+        The questions should focus on the topic['name'] in topics list within the chapter['name'] in chapters list.
         
         Format the response as a JSON array of objects with the following structure:
         [
@@ -82,7 +107,8 @@ async def generate_true_false(text: str) -> List[Dict[str, Any]]:
                 "question": "question text",
                 "options": ["true", "false"],
                 "correct_answer": "true or false",
-                "explanation": "explanation of the correct answer"
+                "explanation": "explanation of the correct answer",
+                "page_number": page_number
             }}
         ]
         Make sure all backslashes in strings are properly escaped as double backslashes (\\), and the output is valid JSON.
@@ -90,7 +116,7 @@ async def generate_true_false(text: str) -> List[Dict[str, Any]]:
         {text}
         """
         
-        response = await model.generate_content(prompt)
+        response = await _generate_quiz_with_retry(prompt)
         return parse_questions(response.text)
     except Exception as e:
         logger.error(f"Error generating true/false questions: {str(e)}")
@@ -100,7 +126,7 @@ async def generate_fill_blanks(text: str) -> List[Dict[str, Any]]:
     """Generate fill in the blanks questions"""
     try:
         prompt = f"""Generate 3 fill in the blanks questions based on the following text.
-        The questions should focus on the topics within the chapters.
+        The questions should focus on the topic['name'] in topics list within the chapter['name'] in chapters list.
         
         Format the response as a JSON array of objects with the following structure:
         [
@@ -108,7 +134,8 @@ async def generate_fill_blanks(text: str) -> List[Dict[str, Any]]:
                 "question": "sentence with _____ for the blank",
                 "options": [],
                 "correct_answer": "correct word or phrase",
-                "explanation": "explanation of the correct answer"
+                "explanation": "explanation of the correct answer",
+                "page_number": page_number
             }}
         ]
         Make sure all backslashes in strings are properly escaped as double backslashes (\\), and the output is valid JSON.
@@ -116,7 +143,7 @@ async def generate_fill_blanks(text: str) -> List[Dict[str, Any]]:
         {text}
         """
         
-        response = await model.generate_content(prompt)
+        response = await _generate_quiz_with_retry(prompt)
         return parse_questions(response.text)
     except Exception as e:
         logger.error(f"Error generating fill in the blanks questions: {str(e)}")
@@ -126,14 +153,15 @@ async def generate_short_answer(text: str) -> List[Dict[str, Any]]:
     """Generate short answer questions"""
     try:
         prompt = f"""Generate 2 short answer questions based on the following text.
-        The questions should focus on the topics within the chapters.
+        The questions should focus on the topic['name'] in topics list within the chapter['name'] in chapters list.
         Format the response as a JSON array of objects with the following structure:
         [
             {{
                 "question": "question text",
                 "options": [],
                 "correct_answer": "model answer",
-                "explanation": "explanation of the answer"
+                "explanation": "explanation of the answer",
+                "page_number": page_number
             }}
         ]
         
@@ -142,7 +170,7 @@ async def generate_short_answer(text: str) -> List[Dict[str, Any]]:
         {text}
         """
         
-        response = await model.generate_content(prompt)
+        response = await _generate_quiz_with_retry(prompt)
         return parse_questions(response.text)
     except Exception as e:
         logger.error(f"Error generating short answer questions: {str(e)}")

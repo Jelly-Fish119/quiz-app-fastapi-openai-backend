@@ -188,6 +188,7 @@ async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
                 "page_number": page.page_number,
                 "topics": page.topics,
                 "chapters": page.chapters,
+                "text": page.text
             })
         pages_data_string = json.dumps(pages_data)
         questions = await generate_quiz_questions(
