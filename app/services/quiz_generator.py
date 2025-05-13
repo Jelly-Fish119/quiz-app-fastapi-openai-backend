@@ -12,23 +12,24 @@ genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
 model = genai.GenerativeModel('gemini-1.5-pro')
 
 
-async def generate_quiz_questions(text: str, chapters: List[Dict[str, float]], topics: List[Dict[str, float]]) -> Dict[str, List[Dict[str, Any]]]:
+async def generate_quiz_questions(text: str) -> Dict[str, List[Dict[str, Any]]]:
     """
     Generate multiple types of quiz questions based on the given text, topic, and chapter.
     Returns a dictionary containing different types of questions.
     """
+    print(f"In generate_quiz_questions text: {text}")
     try:
         # Generate multiple choice questions
-        mc_questions = await generate_multiple_choice(text, topics, chapters)
+        mc_questions = await generate_multiple_choice(text)
         
         # Generate true/false questions
-        tf_questions = await generate_true_false(text, topics, chapters)
+        tf_questions = await generate_true_false(text)
         
         # Generate fill in the blanks questions
-        fb_questions = await generate_fill_blanks(text, topics, chapters)
+        fb_questions = await generate_fill_blanks(text)
         
         # Generate short answer questions
-        sa_questions = await generate_short_answer(text, topics, chapters)
+        sa_questions = await generate_short_answer(text)
         
         return {
             "multiple_choice": mc_questions,
@@ -40,11 +41,9 @@ async def generate_quiz_questions(text: str, chapters: List[Dict[str, float]], t
         logger.error(f"Error generating quiz questions: {str(e)}")
         raise Exception(f"Failed to generate quiz questions: {str(e)}")
 
-async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def generate_multiple_choice(text: str) -> List[Dict[str, Any]]:
     """Generate multiple choice questions"""
     try:
-        topics_text = ','.join([topic["name"] for topic in topics])
-        chapters_text = ','.join([chapter["name"] for chapter in chapters])
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         
@@ -70,7 +69,7 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
         logger.error(f"Error generating multiple choice questions: {str(e)}")
         return []
 
-async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def generate_true_false(text: str) -> List[Dict[str, Any]]:
     """Generate true/false questions"""
     try:
         topics_text = ','.join([topic["name"] for topic in topics])
@@ -99,7 +98,7 @@ async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters:
         logger.error(f"Error generating true/false questions: {str(e)}")
         return []
 
-async def generate_fill_blanks(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def generate_fill_blanks(text: str) -> List[Dict[str, Any]]:
     """Generate fill in the blanks questions"""
     try:
         topics_text = ','.join([topic["name"] for topic in topics])
@@ -127,7 +126,7 @@ async def generate_fill_blanks(text: str, topics: List[Dict[str, Any]], chapters
         logger.error(f"Error generating fill in the blanks questions: {str(e)}")
         return []
 
-async def generate_short_answer(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+async def generate_short_answer(text: str) -> List[Dict[str, Any]]:
     """Generate short answer questions"""
     try:
         topics_text = ','.join([topic["name"] for topic in topics])

@@ -182,21 +182,19 @@ async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
     """
     try:
         # Generate quiz questions
-        result = list()
+        pages_data = list()
         for page in request.pages:
-
-            questions = await generate_quiz_questions(
-                page.text,
-                page.chapters,
-                page.topics,
-            )
-            result.append({
+            pages_data.append({
                 "page_number": page.page_number,
                 "topics": page.topics,
                 "chapters": page.chapters,
                 "questions": questions
             })
-        return result 
+        pages_data_string = json.dumps(pages_data)
+        questions = await generate_quiz_questions(
+            pages_data_string
+        )
+        return questions 
     except Exception as e:
         logger.error(f"Error generating quiz: {str(e)}")
         raise HTTPException(
