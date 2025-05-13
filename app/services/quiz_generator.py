@@ -45,8 +45,6 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
     try:
         topics_text = ','.join([topic.name for topic in topics])
         chapters_text = ','.join([chapter.name for chapter in chapters])
-        logger.info(f"""chapters_text: {chapters_text}
-                     topics_text: {topics_text}""")
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
         
@@ -59,6 +57,7 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
                 "explanation": "explanation of the correct answer"
             }}
         ]
+        Make sure all backslashes in strings are properly escaped as double backslashes (\\), and the output is valid JSON.
         
         Text:
         {text}
@@ -72,8 +71,6 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
 
 async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
     """Generate true/false questions"""
-    logger.info(f"""chapters: {chapters}, 
-                 topics: {topics}""")
     try:
         topics_text = ','.join([topic.name for topic in topics])
         chapters_text = ','.join([chapter.name for chapter in chapters])
@@ -90,7 +87,7 @@ async def generate_true_false(text: str, topics: List[Dict[str, Any]], chapters:
                 "explanation": "explanation of the correct answer"
             }}
         ]
-        
+        Make sure all backslashes in strings are properly escaped as double backslashes (\\), and the output is valid JSON.
         Text:
         {text}
         """
@@ -118,7 +115,7 @@ async def generate_fill_blanks(text: str, topics: List[Dict[str, Any]], chapters
                 "explanation": "explanation of the correct answer"
             }}
         ]
-        
+        Make sure all backslashes in strings are properly escaped as double backslashes (\\), and the output is valid JSON.
         Text:
         {text}
         """
@@ -136,7 +133,6 @@ async def generate_short_answer(text: str, topics: List[Dict[str, Any]], chapter
         chapters_text = ','.join([chapter.name for chapter in chapters])
         prompt = f"""Generate 2 short answer questions based on the following text.
         The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
-        
         Format the response as a JSON array of objects with the following structure:
         [
             {{
@@ -147,6 +143,7 @@ async def generate_short_answer(text: str, topics: List[Dict[str, Any]], chapter
             }}
         ]
         
+        Make sure all backslashes in strings are properly escaped as double backslashes (\\), and the output is valid JSON.
         Text:
         {text}
         """
@@ -172,10 +169,10 @@ def parse_questions(text: str) -> List[Dict[str, Any]]:
         
         json_text = json_match.group()
         # Sanitize bad backslashes (escape invalid ones)
-        sanitized_text = re.sub(r'\\(?![\\nrt"/])', r'\\\\', json_text)
+        sanitized_text = re.sub(r'\\(?![\\/"bfnrtu])', r'\\\\', json_text)
 
         questions = json.loads(sanitized_text)
-        
+
         # Validate question structure
         valid_questions = []
         for question in questions:
