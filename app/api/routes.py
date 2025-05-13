@@ -193,7 +193,7 @@ async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
             result.append({
                 "page_number": page.page_number,
                 "topics": page.topics,
-                "chapter": page.chapter,
+                "chapters": page.chapters,
                 "questions": questions
             })
         return result 
