@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 # Configure Gemini
 genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
-model = genai.GenerativeModel('gemini-1.5-pro')
+model = genai.GenerativeModel('gemini-1.0-pro')
 
 class RateLimitError(Exception):
     """Custom exception for rate limiting errors"""
@@ -48,19 +48,19 @@ async def generate_quiz_questions(text: str) -> Dict[str, List[Dict[str, Any]]]:
         mc_questions = await generate_multiple_choice(text)
         
         # Generate true/false questions
-        tf_questions = await generate_true_false(text)
+        # tf_questions = await generate_true_false(text)
         
-        # Generate fill in the blanks questions
-        fb_questions = await generate_fill_blanks(text)
+        # # Generate fill in the blanks questions
+        # fb_questions = await generate_fill_blanks(text)
         
-        # Generate short answer questions
-        sa_questions = await generate_short_answer(text)
+        # # Generate short answer questions
+        # sa_questions = await generate_short_answer(text)
         
         return {
             "multiple_choice": mc_questions,
-            "true_false": tf_questions,
-            "fill_blanks": fb_questions,
-            "short_answer": sa_questions
+            # "true_false": tf_questions,
+            # "fill_blanks": fb_questions,
+            # "short_answer": sa_questions
         }
     except Exception as e:
         logger.error(f"Error generating quiz questions: {str(e)}")
