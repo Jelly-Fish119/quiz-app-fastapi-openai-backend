@@ -178,7 +178,7 @@ async def analyze_pages(request: PageAnalysisRequest) -> Dict[str, Any]:
 @router.post("/pdf/generate-quiz")
 async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
     """
-    Generate quiz questions for a specific page.
+    Generate quiz questions for a specific pages.
     """
     try:
         # Generate quiz questions

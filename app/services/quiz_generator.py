@@ -45,7 +45,7 @@ async def generate_multiple_choice(text: str) -> List[Dict[str, Any]]:
     """Generate multiple choice questions"""
     try:
         prompt = f"""Generate 5 multiple-choice questions based on the following text.
-        The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
+        The questions should focus on the topics within the chapters.
         
         Format the response as a JSON array of objects with the following structure:
         [
@@ -72,11 +72,9 @@ async def generate_multiple_choice(text: str) -> List[Dict[str, Any]]:
 async def generate_true_false(text: str) -> List[Dict[str, Any]]:
     """Generate true/false questions"""
     try:
-        topics_text = ','.join([topic["name"] for topic in topics])
-        chapters_text = ','.join([chapter["name"] for chapter in chapters])
 
         prompt = f"""Generate 3 true/false questions based on the following text.
-        The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
+        The questions should focus on the topics within the chapters.
         
         Format the response as a JSON array of objects with the following structure:
         [
@@ -101,10 +99,8 @@ async def generate_true_false(text: str) -> List[Dict[str, Any]]:
 async def generate_fill_blanks(text: str) -> List[Dict[str, Any]]:
     """Generate fill in the blanks questions"""
     try:
-        topics_text = ','.join([topic["name"] for topic in topics])
-        chapters_text = ','.join([chapter["name"] for chapter in chapters])
         prompt = f"""Generate 3 fill in the blanks questions based on the following text.
-        The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
+        The questions should focus on the topics within the chapters.
         
         Format the response as a JSON array of objects with the following structure:
         [
@@ -129,10 +125,8 @@ async def generate_fill_blanks(text: str) -> List[Dict[str, Any]]:
 async def generate_short_answer(text: str) -> List[Dict[str, Any]]:
     """Generate short answer questions"""
     try:
-        topics_text = ','.join([topic["name"] for topic in topics])
-        chapters_text = ','.join([chapter["name"] for chapter in chapters])
         prompt = f"""Generate 2 short answer questions based on the following text.
-        The questions should focus on the topics: {topics_text} within the chapters: {chapters_text}.
+        The questions should focus on the topics within the chapters.
         Format the response as a JSON array of objects with the following structure:
         [
             {{
