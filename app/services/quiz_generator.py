@@ -34,6 +34,7 @@ async def _generate_quiz_with_retry(prompt: str) -> str:
         if "429" in str(e) or "quota" in str(e).lower():
             logger.warning(f"Rate limit hit, will retry: {str(e)}")
             raise RateLimitError(str(e))
+            time.sleep(10)
         raise
 
 async def generate_quiz_questions(text: str) -> Dict[str, List[Dict[str, Any]]]:
