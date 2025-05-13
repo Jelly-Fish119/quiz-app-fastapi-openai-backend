@@ -64,6 +64,7 @@ async def generate_multiple_choice(text: str, topics: List[Dict[str, Any]], chap
         """
         
         response = await model.generate_content(prompt)
+        print(f"In generate_multiple_choice response: {response.text}")
         return parse_questions(response.text)
     except Exception as e:
         logger.error(f"Error generating multiple choice questions: {str(e)}")
