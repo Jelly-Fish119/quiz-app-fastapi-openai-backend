@@ -236,29 +236,29 @@ async def analyze_pages(request: PageAnalysisRequest) -> Dict[str, Any]:
             detail=f"An error occurred while analyzing pages: {str(e)}"
         )
 
-@router.post("/pdf/generate-quiz")
-async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
-    """
-    Generate quiz questions for a specific pages.
-    """
-    try:
-        # Generate quiz questions
-        pages_data = list()
-        for page in request.pages:
-            pages_data.append({
-                "page_number": page.page_number,
-                "topics": page.topics,
-                "chapters": page.chapters,
-                "text": page.text,
-            })
-        pages_data_string = json.dumps(pages_data)
-        questions = await generate_quiz_questions(
-            pages_data_string
-        )
-        return questions 
-    except Exception as e:
-        logger.error(f"Error generating quiz: {str(e)}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"An error occurred while generating quiz: {str(e)}"
-        ) 
+# @router.post("/pdf/generate-quiz")
+# async def generate_quiz(request: QuizGenerationRequest) -> List[Dict[str, Any]]:
+#     """
+#     Generate quiz questions for a specific pages.
+#     """
+#     try:
+#         # Generate quiz questions
+#         pages_data = list()
+#         for page in request.pages:
+#             pages_data.append({
+#                 "page_number": page.page_number,
+#                 "topics": page.topics,
+#                 "chapters": page.chapters,
+#                 "text": page.text,
+#             })
+#         pages_data_string = json.dumps(pages_data)
+#         questions = await generate_quiz_questions(
+#             pages_data_string
+#         )
+#         return questions 
+#     except Exception as e:
+#         logger.error(f"Error generating quiz: {str(e)}")
+#         raise HTTPException(
+#             status_code=500,
+#             detail=f"An error occurred while generating quiz: {str(e)}"
+#         ) 
