@@ -158,7 +158,6 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     # Look for chapter patterns
     sentences = sent_tokenize(text)
     chapters = []
-    chapter_number = 1
     
     for i, sentence in enumerate(sentences):
         sentence_lower = sentence.lower()
@@ -168,15 +167,13 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
             number_match = re.search(r'(?:chapter|section|part)\s*(\d+)', sentence_lower)
             if number_match:
                 chapter_number = int(number_match.group(1))
-            
-            chapters.append(Chapter(
-                number=chapter_number,
-                name=sentence.strip(),
-                confidence=0.9,  # High confidence for explicit chapter markers
-                page_number=page_number,
-                line_number=i
-            ))
-            chapter_number += 1
+                chapters.append(Chapter(
+                    number=chapter_number,
+                    name=sentence.strip(),
+                    confidence=0.9,  # High confidence for explicit chapter markers
+                    page_number=page_number,
+                    line_number=i
+                ))
     
     return chapters
 
