@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, HTTPException, Depends
+from fastapi import FastAPI, UploadFile, File, HTTPException, Depends, Form
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel  
 from typing import List
@@ -218,10 +218,11 @@ async def upload_chunk(
     return {"message": "Chunk uploaded successfully"}
 
 @app.post("/pdf/finalize-upload")
-async def finalize_upload(form_data: UploadForm = Depends(UploadForm)):
+async def finalize_upload(
+    file_name: str = Form(...),
+    total_chunks: int = Form(...)
+):
     """Combine chunks and start processing"""
-    file_name = form_data.file_name
-    total_chunks = form_data.total_chunks
     chunk_dir = CHUNKS_DIR / file_name
     if not chunk_dir.exists():
         raise HTTPException(status_code=404, detail="Chunks not found")
