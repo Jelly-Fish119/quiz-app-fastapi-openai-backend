@@ -14,6 +14,7 @@ import shutil
 from pathlib import Path
 import csv
 import json
+import time
 
 # Download required NLTK data
 nltk.download('punkt')
@@ -36,29 +37,43 @@ app.add_middleware(
 )
 
 # Configure HuggingFace
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/gpt2"
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/distilgpt2"
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')  # Get from https://huggingface.co/settings/tokens
 
 def generate_with_huggingface(prompt: str) -> str:
-    """Generate text using HuggingFace's GPT-2 model"""
+    """Generate text using HuggingFace's DistilGPT-2 model"""
     try:
         headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
         payload = {
             "inputs": f"Generate quiz questions based on this text: {prompt}",
             "parameters": {
-                "max_new_tokens": 256,
-                "temperature": 0.7,
-                "top_p": 0.95,
-                "return_full_text": False
+                "max_new_tokens": 128,
+                "temperature": 0.8,
+                "top_p": 0.9,
+                "return_full_text": False,
+                "num_return_sequences": 1
             }
         }
         
-        response = requests.post(HUGGINGFACE_API_URL, headers=headers, json=payload)
-        response.raise_for_status()
-        return response.json()[0]["generated_text"]
+        # Try up to 3 times with increasing delays
+        for attempt in range(3):
+            try:
+                response = requests.post(HUGGINGFACE_API_URL, headers=headers, json=payload)
+                if response.status_code == 503:
+                    print(f"Model is loading, attempt {attempt + 1}/3, waiting...")
+                    time.sleep(20 * (attempt + 1))  # Increasing delay
+                    continue
+                response.raise_for_status()
+                return response.json()[0]["generated_text"]
+            except requests.exceptions.RequestException as e:
+                if attempt == 2:  # Last attempt
+                    raise e
+                print(f"Attempt {attempt + 1} failed, retrying...")
+                time.sleep(10 * (attempt + 1))
+        
+        raise Exception("All attempts failed")
     except Exception as e:
         print(f"Error generating with HuggingFace: {e}")
-        # Fallback to a simple question generation if API fails
         return generate_fallback_questions(prompt)
 
 def generate_fallback_questions(text: str) -> str:
