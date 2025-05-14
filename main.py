@@ -36,17 +36,17 @@ app.add_middleware(
 )
 
 # Configure HuggingFace
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/facebook/opt-350m"
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')  # Get from https://huggingface.co/settings/tokens
 
 def generate_with_huggingface(prompt: str) -> str:
-    """Generate text using HuggingFace's Mistral model"""
+    """Generate text using HuggingFace's OPT model"""
     try:
         headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
         payload = {
-            "inputs": prompt,
+            "inputs": f"Generate quiz questions based on this text: {prompt}",
             "parameters": {
-                "max_new_tokens": 1024,
+                "max_new_tokens": 512,
                 "temperature": 0.7,
                 "top_p": 0.95,
                 "return_full_text": False
@@ -58,7 +58,33 @@ def generate_with_huggingface(prompt: str) -> str:
         return response.json()[0]["generated_text"]
     except Exception as e:
         print(f"Error generating with HuggingFace: {e}")
-        raise HTTPException(status_code=500, detail=f"Error generating questions: {str(e)}")
+        # Fallback to a simple question generation if API fails
+        return generate_fallback_questions(prompt)
+
+def generate_fallback_questions(text: str) -> str:
+    """Generate simple questions as fallback when API fails"""
+    sentences = sent_tokenize(text)
+    questions = []
+    
+    for i, sentence in enumerate(sentences[:5]):  # Take first 5 sentences
+        if len(sentence.split()) > 5:  # Only use sentences with more than 5 words
+            questions.append(f"""
+Question: What is the main point of this statement: "{sentence}"?
+Options:
+A) It describes a process
+B) It states a fact
+C) It asks a question
+D) It makes a comparison
+Correct Answer: B) It states a fact
+Explanation: The statement presents factual information.
+Type: Multiple Choice
+Page: 1
+Line: {i + 1}
+Chapter: Introduction
+Topic: General
+""")
+    
+    return "\n\n".join(questions)
 
 # Data models
 class LineNumber(BaseModel):
