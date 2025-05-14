@@ -209,12 +209,15 @@ async def upload_chunk(
 ):
     """Handle chunked file upload"""
     chunk_dir = CHUNKS_DIR / file_name
-    chunk_dir.mkdir(exist_ok=True)
+    chunk_dir.mkdir(parents=True, exist_ok=True)
     
     chunk_path = chunk_dir / f"chunk_{chunk_index}"
+    print(f"Uploading chunk {chunk_index} of {total_chunks} to {chunk_path}")
+    
     with open(chunk_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
+    print(f"Chunk {chunk_index} uploaded successfully")
     return {"message": "Chunk uploaded successfully"}
 
 @app.post("/pdf/finalize-upload")
