@@ -286,27 +286,21 @@ async def finalize_upload(
                 chapters.extend(page_chapters)
 
             # Generate quiz questions with references
-            prompt = f"""
-            Generate quiz questions from the following text. For each question, provide:
-            1. The question
-            2. Options (for multiple choice)
-            3. Correct answer
-            4. Explanation
-            5. Type of question
-            6. Page number reference
-            7. Line number reference
-            8. Chapter reference (if applicable)
-            9. Topic reference (if applicable)
-
-            Text content:
-            {'\n\n'.join(all_text)}
-
-            Chapters found:
-            {json.dumps([{'name': c.name, 'page': c.page_number, 'line': c.line_number} for c in chapters], indent=2)}
-
-            Topics found:
-            {json.dumps([{'name': t.name, 'page': t.page_number, 'line': t.line_number} for t in topics], indent=2)}
-            """
+            prompt = (
+                "Generate quiz questions from the following text. For each question, provide:\n"
+                "1. The question\n"
+                "2. Options (for multiple choice)\n"
+                "3. Correct answer\n"
+                "4. Explanation\n"
+                "5. Type of question\n"
+                "6. Page number reference\n"
+                "7. Line number reference\n"
+                "8. Chapter reference (if applicable)\n"
+                "9. Topic reference (if applicable)\n\n"
+                f"Text content:\n{chr(10).join(all_text)}\n\n"
+                f"Chapters found:\n{json.dumps([{'name': c.name, 'number': c.number, 'page': c.page_number, 'line': c.line_number} for c in chapters], indent=2)}\n\n"
+                f"Topics found:\n{json.dumps([{'name': t.name, 'page': t.page_number, 'line': t.line_number} for t in topics], indent=2)}"
+            )
             
             response = model.generate_content(prompt)
             questions = []
