@@ -7,7 +7,7 @@ import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.probability import FreqDist
-import google.generativeai as genai
+import requests
 import os
 import tempfile
 import shutil
@@ -35,9 +35,30 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Configure Gemini
-genai.configure(api_key=os.getenv('GEMINI_API_KEY'))
-model = genai.GenerativeModel('gemini-1.5-pro')
+# Configure HuggingFace
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
+HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')  # Get from https://huggingface.co/settings/tokens
+
+def generate_with_huggingface(prompt: str) -> str:
+    """Generate text using HuggingFace's Mistral model"""
+    try:
+        headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": 1024,
+                "temperature": 0.7,
+                "top_p": 0.95,
+                "return_full_text": False
+            }
+        }
+        
+        response = requests.post(HUGGINGFACE_API_URL, headers=headers, json=payload)
+        response.raise_for_status()
+        return response.json()[0]["generated_text"]
+    except Exception as e:
+        print(f"Error generating with HuggingFace: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating questions: {str(e)}")
 
 # Data models
 class LineNumber(BaseModel):
@@ -178,7 +199,7 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     return chapters
 
 def generate_quiz_questions(text: str, page_number: int) -> List[QuizQuestion]:
-    """Generate quiz questions using Gemini"""
+    """Generate quiz questions using HuggingFace"""
     prompt = f"""
     Generate quiz questions from the following text. Include multiple choice, true/false, fill in the blanks, and short answer questions.
     For each question, provide:
@@ -191,12 +212,11 @@ def generate_quiz_questions(text: str, page_number: int) -> List[QuizQuestion]:
     Text: {text}
     """
     
-    response = model.generate_content(prompt)
+    response_text = generate_with_huggingface(prompt)
     questions = []
     
-    # Parse Gemini response and create QuizQuestion objects
-    # This is a simplified version - you'll need to parse the actual response format
-    for q in response.text.split('\n\n'):
+    # Parse HuggingFace response and create QuizQuestion objects
+    for q in response_text.split('\n\n'):
         if 'Question:' in q:
             questions.append(QuizQuestion(
                 question=q.split('Question:')[1].split('Options:')[0].strip(),
@@ -302,11 +322,14 @@ async def finalize_upload(
                 f"Topics found:\n{json.dumps([{'name': t.name, 'page': t.page_number, 'line': t.line_number} for t in topics], indent=2)}"
             )
             
-            response = model.generate_content(prompt)
+            print("----------------- prompt ----------------- \n", prompt)
+            response_text = generate_with_huggingface(prompt)
+            print("----------------- response ----------------- \n", response_text)
+            
             questions = []
             
-            # Parse Gemini response and create QuizQuestion objects with references
-            for q in response.text.split('\n\n'):
+            # Parse HuggingFace response and create QuizQuestion objects with references
+            for q in response_text.split('\n\n'):
                 if 'Question:' in q:
                     try:
                         question_data = {
