@@ -322,7 +322,6 @@ async def finalize_upload(
                 f"Topics found:\n{json.dumps([{'name': t.name, 'page': t.page_number, 'line': t.line_number} for t in topics], indent=2)}"
             )
             
-            print("----------------- prompt ----------------- \n", prompt)
             response_text = generate_with_huggingface(prompt)
             print("----------------- response ----------------- \n", response_text)
             
