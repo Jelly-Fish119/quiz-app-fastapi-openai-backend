@@ -36,17 +36,17 @@ app.add_middleware(
 )
 
 # Configure HuggingFace
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/facebook/opt-350m"
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/gpt2"
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')  # Get from https://huggingface.co/settings/tokens
 
 def generate_with_huggingface(prompt: str) -> str:
-    """Generate text using HuggingFace's OPT model"""
+    """Generate text using HuggingFace's GPT-2 model"""
     try:
         headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
         payload = {
             "inputs": f"Generate quiz questions based on this text: {prompt}",
             "parameters": {
-                "max_new_tokens": 512,
+                "max_new_tokens": 256,
                 "temperature": 0.7,
                 "top_p": 0.95,
                 "return_full_text": False
