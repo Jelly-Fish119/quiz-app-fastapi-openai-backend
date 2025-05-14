@@ -203,9 +203,9 @@ def generate_quiz_questions(text: str, page_number: int) -> List[QuizQuestion]:
 @app.post("/pdf/upload-chunk")
 async def upload_chunk(
     file: UploadFile = File(...),
-    chunk_index: int = 0,
-    total_chunks: int = 1,
-    file_name: str = ""
+    chunk_index: int = Form(...),
+    total_chunks: int = Form(...),
+    file_name: str = Form(...)
 ):
     """Handle chunked file upload"""
     chunk_dir = CHUNKS_DIR / file_name
