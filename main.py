@@ -217,7 +217,7 @@ async def upload_chunk(
     with open(chunk_path, "wb") as buffer:
         shutil.copyfileobj(file.file, buffer)
     
-    print(f"Chunk {chunk_index} uploaded successfully")
+    print(f"Chunk {chunk_index} uploaded successfully to {chunk_path}")
     return {"message": "Chunk uploaded successfully"}
 
 @app.post("/pdf/finalize-upload")
