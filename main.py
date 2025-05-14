@@ -56,6 +56,7 @@ class Topic(BaseModel):
     line_number: int
 
 class Chapter(BaseModel):
+    number: int
     name: str
     confidence: float
     page_number: int
@@ -69,6 +70,8 @@ class QuizQuestion(BaseModel):
     type: str
     page_number: int
     line_number: int
+    chapter: str
+    topic: str
 
 class AnalysisResponse(BaseModel):
     topics: List[Topic]
@@ -155,15 +158,25 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     # Look for chapter patterns
     sentences = sent_tokenize(text)
     chapters = []
+    chapter_number = 1
     
     for i, sentence in enumerate(sentences):
-        if any(keyword in sentence.lower() for keyword in ['chapter', 'section', 'part']):
+        sentence_lower = sentence.lower()
+        if any(keyword in sentence_lower for keyword in ['chapter', 'section', 'part']):
+            # Try to extract chapter number
+            import re
+            number_match = re.search(r'(?:chapter|section|part)\s*(\d+)', sentence_lower)
+            if number_match:
+                chapter_number = int(number_match.group(1))
+            
             chapters.append(Chapter(
+                number=chapter_number,
                 name=sentence.strip(),
                 confidence=0.9,  # High confidence for explicit chapter markers
                 page_number=page_number,
                 line_number=i
             ))
+            chapter_number += 1
     
     return chapters
 
@@ -247,8 +260,95 @@ async def finalize_upload(
     
     # Clean up chunks
     shutil.rmtree(chunk_dir)
-    
-    return {"fileId": file_name}
+
+    # Process the PDF
+    try:
+        import PyPDF2
+        with open(final_path, 'rb') as file:
+            pdf_reader = PyPDF2.PdfReader(file)
+            all_text = []
+            page_texts = []
+            
+            # Extract text from each page
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                text = page.extract_text()
+                page_texts.append(text)
+                all_text.append(f"Page {page_num + 1}:\n{text}")
+
+            # Extract topics and chapters
+            topics = []
+            chapters = []
+            for page_num, text in enumerate(page_texts):
+                # Extract topics
+                page_topics = extract_topics(text, page_num + 1, 0)
+                topics.extend(page_topics)
+                
+                # Extract chapters
+                page_chapters = extract_chapters(text, page_num + 1)
+                chapters.extend(page_chapters)
+
+            # Generate quiz questions with references
+            prompt = f"""
+            Generate quiz questions from the following text. For each question, provide:
+            1. The question
+            2. Options (for multiple choice)
+            3. Correct answer
+            4. Explanation
+            5. Type of question
+            6. Page number reference
+            7. Line number reference
+            8. Chapter reference (if applicable)
+            9. Topic reference (if applicable)
+
+            Text content:
+            {'\n\n'.join(all_text)}
+
+            Chapters found:
+            {json.dumps([{'name': c.name, 'page': c.page_number, 'line': c.line_number} for c in chapters], indent=2)}
+
+            Topics found:
+            {json.dumps([{'name': t.name, 'page': t.page_number, 'line': t.line_number} for t in topics], indent=2)}
+            """
+            
+            response = model.generate_content(prompt)
+            questions = []
+            
+            # Parse Gemini response and create QuizQuestion objects with references
+            for q in response.text.split('\n\n'):
+                if 'Question:' in q:
+                    try:
+                        question_data = {
+                            'question': q.split('Question:')[1].split('Options:')[0].strip(),
+                            'options': q.split('Options:')[1].split('Correct Answer:')[0].strip().split('\n'),
+                            'correct_answer': q.split('Correct Answer:')[1].split('Explanation:')[0].strip(),
+                            'explanation': q.split('Explanation:')[1].split('Type:')[0].strip(),
+                            'type': q.split('Type:')[1].split('Page:')[0].strip(),
+                            'page_number': int(q.split('Page:')[1].split('Line:')[0].strip()),
+                            'line_number': int(q.split('Line:')[1].split('Chapter:')[0].strip()),
+                            'chapter': q.split('Chapter:')[1].split('Topic:')[0].strip(),
+                            'topic': q.split('Topic:')[1].strip()
+                        }
+                        questions.append(QuizQuestion(**question_data))
+                    except Exception as e:
+                        print(f"Error parsing question: {e}")
+                        continue
+
+            # Save analysis results
+            analysis = AnalysisResponse(
+                topics=topics,
+                chapters=chapters,
+                questions=questions
+            )
+            
+            # Save to CSV
+            save_to_csv(analysis.dict(), f"analysis_{file_name}")
+            
+            return {"fileId": file_name, "analysis": analysis}
+
+    except Exception as e:
+        print(f"Error processing PDF: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
 @app.post("/pdf/analyze-pages")
 async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
