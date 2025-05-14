@@ -227,7 +227,10 @@ async def finalize_upload(
 ):
     """Combine chunks and start processing"""
     chunk_dir = CHUNKS_DIR / file_name
+    print(f"Looking for chunks in {chunk_dir}")
+    
     if not chunk_dir.exists():
+        print(f"Chunk directory not found: {chunk_dir}")
         raise HTTPException(status_code=404, detail="Chunks not found")
     
     # Combine chunks
@@ -235,6 +238,10 @@ async def finalize_upload(
     with open(final_path, "wb") as outfile:
         for i in range(total_chunks):
             chunk_path = chunk_dir / f"chunk_{i}"
+            print(f"Reading chunk {i} from {chunk_path}")
+            if not chunk_path.exists():
+                print(f"Chunk {i} not found at {chunk_path}")
+                raise HTTPException(status_code=404, detail=f"Chunk {i} not found")
             with open(chunk_path, "rb") as infile:
                 outfile.write(infile.read())
     
