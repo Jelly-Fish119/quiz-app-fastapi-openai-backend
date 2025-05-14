@@ -37,11 +37,11 @@ app.add_middleware(
 )
 
 # Configure HuggingFace
-HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/distilgpt2"
+HUGGINGFACE_API_URL = "https://api-inference.huggingface.co/models/EleutherAI/gpt-neo-125M"
 HUGGINGFACE_API_KEY = os.getenv('HUGGINGFACE_API_KEY', '')  # Get from https://huggingface.co/settings/tokens
 
 def generate_with_huggingface(prompt: str) -> str:
-    """Generate text using HuggingFace's DistilGPT-2 model"""
+    """Generate text using HuggingFace's GPT-Neo model"""
     try:
         headers = {"Authorization": f"Bearer {HUGGINGFACE_API_KEY}"}
         payload = {
