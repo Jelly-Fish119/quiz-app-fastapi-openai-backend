@@ -308,6 +308,7 @@ def find_best_matching_chapter(question_text: str, chapters: List[Chapter]) -> s
 
 def generate_quiz_questions(page_text: str, page_number: int, topics: List[Topic] = None, chapters: List[Chapter] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
+    print("-----------------page number: ", page_number)
     try:
         # Create a prompt that specifies the exact format for each question type
         prompt = f"""Generate as much as possible quiz questions from the following text. Each question should be on a new line and follow this exact format:
