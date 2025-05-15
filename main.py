@@ -262,7 +262,51 @@ def parse_question_options(options_str: str, question_type: str) -> List[str]:
         return []  # Short answer questions don't have options
     return []
 
-def generate_quiz_questions(page_text: str, page_number: int) -> List[QuizQuestion]:
+def find_best_matching_topic(question_text: str, topics: List[Topic]) -> str:
+    """Find the best matching topic for a question using simple text matching."""
+    if not topics:
+        return ""
+    
+    # Convert question to lowercase for better matching
+    question_lower = question_text.lower()
+    
+    # Score each topic based on word overlap
+    topic_scores = []
+    for topic in topics:
+        score = 0
+        topic_words = topic.name.lower().split()
+        for word in topic_words:
+            if word in question_lower:
+                score += 1
+        topic_scores.append((topic.name, score))
+    
+    # Return the topic with the highest score
+    best_topic = max(topic_scores, key=lambda x: x[1])
+    return best_topic[0] if best_topic[1] > 0 else ""
+
+def find_best_matching_chapter(question_text: str, chapters: List[Chapter]) -> str:
+    """Find the best matching chapter for a question using simple text matching."""
+    if not chapters:
+        return ""
+    
+    # Convert question to lowercase for better matching
+    question_lower = question_text.lower()
+    
+    # Score each chapter based on word overlap
+    chapter_scores = []
+    for chapter in chapters:
+        score = 0
+        chapter_words = chapter.name.lower().split()
+        for word in chapter_words:
+            if word in question_lower:
+                score += 1
+        chapter_scores.append((chapter.name, score))
+    
+    # Return the chapter with the highest score
+    best_chapter = max(chapter_scores, key=lambda x: x[1])
+    return best_chapter[0] if best_chapter[1] > 0 else ""
+
+def generate_quiz_questions(page_text: str, page_number: int, topics: List[Topic] = None, chapters: List[Chapter] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     try:
         # Create a prompt that specifies the exact format for each question type
@@ -409,6 +453,12 @@ Remember:
         # Add the last question if exists
         if current_question:
             questions.append(current_question)
+        
+        # Add topic and chapter information to each question
+        if topics and chapters:
+            for question in questions:
+                question['topic'] = find_best_matching_topic(question['question'], topics)
+                question['chapter'] = find_best_matching_chapter(question['question'], chapters)
             
         return questions
         
@@ -515,7 +565,7 @@ async def finalize_upload(
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
-            all_questions = generate_quiz_questions(combined_text, page_num + 1)
+            all_questions = generate_quiz_questions(combined_text, page_num + 1, topics, chapters)
 
             # Save analysis results
             analysis = AnalysisResponse(
@@ -549,8 +599,8 @@ async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
         chapters = extract_chapters(page.text, page.page_number)
         all_chapters.extend(chapters)
         
-        # Generate quiz questions
-        questions = generate_quiz_questions(page.text, page.page_number)
+        # Generate quiz questions with topics and chapters
+        questions = generate_quiz_questions(page.text, page.page_number, all_topics, all_chapters)
         all_questions.extend(questions)
     
     # Create response
