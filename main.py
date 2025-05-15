@@ -263,7 +263,7 @@ def parse_question_options(options_str: str, question_type: str) -> List[str]:
     return []
 
 def generate_quiz_questions(page_text: str, page_number: int) -> List[QuizQuestion]:
-    """Generate quiz questions for a single page using Ollama."""
+    """Generate quiz questions for a single page using Gemini."""
     try:
         # Create a prompt that specifies the exact format for each question type
         prompt = f"""Generate 3-4 quiz questions from the following text. Each question should be on a new line and follow this exact format:
@@ -305,18 +305,8 @@ Remember:
 - Include a mix of different question types
 - For MCQs, always provide exactly 4 options (A, B, C, D)"""
 
-        # Call Ollama API
-        response = requests.post(
-            "http://localhost:11434/api/generate",
-            json={
-                "model": "llama2",
-                "prompt": prompt,
-                "stream": False
-            }
-        )
-        
-        if response.status_code != 200:
-            raise Exception(f"Ollama API error: {response.text}")
+        # Call Gemini API
+        response = generate_with_gemini(prompt)
             
         # Parse the response
         questions = []
@@ -324,7 +314,7 @@ Remember:
         current_type = None
         collecting_options = False
         
-        for line in response.json()["response"].split('\n'):
+        for line in response.split('\n'):
             line = line.strip()
             if not line:
                 continue
