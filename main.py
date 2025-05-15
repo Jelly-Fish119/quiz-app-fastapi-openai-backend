@@ -334,7 +334,6 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
 
 def generate_quiz_questions(page_text: str, topics: List[Topic] = None, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
-    print("-----------------page number: ", page_number)
     try:
         # Create a prompt that specifies the exact format for each question type
         prompt = f"""Generate as much as possible quiz questions from the following text. Each question should be on a new line and follow this exact format:
