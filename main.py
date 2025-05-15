@@ -7,15 +7,15 @@ import nltk
 from nltk.tokenize import sent_tokenize, word_tokenize
 from nltk.corpus import stopwords
 from nltk.probability import FreqDist
-import requests
 import os
 import tempfile
 import shutil
-from pathlib import Path
+from pathlib import Path 
 import csv
 import json
-import time
-import replicate
+import requests
+from dotenv import load_dotenv
+import google.generativeai as genai
 
 # Download required NLTK data
 nltk.download('punkt')
@@ -37,54 +37,29 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# Configure Replicate
-REPLICATE_API_TOKEN = os.getenv('REPLICATE_API_TOKEN', '')  # Get from https://replicate.com/account/api-tokens
+load_dotenv()
 
-def generate_with_replicate(prompt: str) -> str:
-    """Generate text using Replicate's Llama 2 model"""
-    try:
-        # Using Llama 2 7B model
-        output = replicate.run(
-            "meta/llama-2-7b-chat:13c3cdee13ee059ab779f0291d29054dab00a4dad82ac6588e3c7639d1adda5f",
-            input={
-                "prompt": f"Generate quiz questions based on this text: {prompt}",
-                "temperature": 0.7,
-                "top_p": 0.9,
-                "max_new_tokens": 512,
-                "repetition_penalty": 1.1
-            }
-        )
-        
-        # Replicate returns a generator, so we need to join the output
-        return "".join(output)
-    except Exception as e:
-        print(f"Error generating with Replicate: {e}")
-        return generate_fallback_questions(prompt)
+# Configure Gemini
+GOOGLE_API_KEY = os.getenv('GOOGLE_API_KEY')
+if not GOOGLE_API_KEY:
+    raise ValueError("GOOGLE_API_KEY environment variable is not set")
 
-def generate_fallback_questions(text: str) -> str:
-    """Generate simple questions as fallback when API fails"""
-    sentences = sent_tokenize(text)
-    questions = []
-    
-    for i, sentence in enumerate(sentences[:5]):  # Take first 5 sentences
-        if len(sentence.split()) > 5:  # Only use sentences with more than 5 words
-            questions.append(f"""
-Question: What is the main point of this statement: "{sentence}"?
-Options:
-A) It describes a process
-B) It states a fact
-C) It asks a question
-D) It makes a comparison
-Correct Answer: B) It states a fact
-Explanation: The statement presents factual information.
-Type: Multiple Choice
-Page: 1
-Line: {i + 1}
-Chapter: Introduction
-Topic: General
-""")
-    
-    return "\n\n".join(questions)
+genai.configure(api_key=GOOGLE_API_KEY)
+model = genai.GenerativeModel('gemini-pro')
+
+def generate_with_gemini(prompt: str, max_retries: int = 3) -> str:
+    """Generate text using Gemini API with retries"""
+    for attempt in range(max_retries):
+        try:
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt == max_retries - 1:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error generating content after {max_retries} attempts: {str(e)}"
+                )
 
 # Data models
 class LineNumber(BaseModel):
@@ -224,37 +199,69 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     
     return chapters
 
-def generate_quiz_questions(text: str, page_number: int) -> List[QuizQuestion]:
-    """Generate quiz questions using Replicate"""
-    prompt = f"""
-    Generate quiz questions from the following text. Include multiple choice, true/false, fill in the blanks, and short answer questions.
-    For each question, provide:
-    1. The question
-    2. Options (for multiple choice)
-    3. Correct answer
-    4. Explanation
-    5. Type of question
-    
-    Text: {text}
-    """
-    
-    response_text = generate_with_replicate(prompt)
-    questions = []
-    
-    # Parse Replicate response and create QuizQuestion objects
-    for q in response_text.split('\n\n'):
-        if 'Question:' in q:
-            questions.append(QuizQuestion(
-                question=q.split('Question:')[1].split('Options:')[0].strip(),
-                options=q.split('Options:')[1].split('Correct Answer:')[0].strip().split('\n'),
-                correct_answer=q.split('Correct Answer:')[1].split('Explanation:')[0].strip(),
-                explanation=q.split('Explanation:')[1].split('Type:')[0].strip(),
-                type=q.split('Type:')[1].strip(),
-                page_number=page_number,
-                line_number=0  # You might want to determine this based on the question content
-            ))
-    
-    return questions
+def generate_quiz_questions(text: str, page_number: int = 1) -> List[QuizQuestion]:
+    """Generate quiz questions using Gemini for the entire text"""
+    try:
+        # Create a comprehensive prompt for the entire text
+        prompt = f"""Create 10-15 high-quality quiz questions for this educational content:
+
+{text[:4000]}  # Limit text to first 4000 characters to avoid token limits
+
+Format each question as:
+Question: [clear, specific question about the content]
+Options: [A]
+[B]
+[C]
+[D]
+Correct Answer: [option]
+Explanation: [detailed explanation of why this is correct and why others are incorrect]
+Type: multiple_choice
+Page: [page number where the answer can be found]
+Line: [line number]
+Chapter: [chapter name or number if applicable]
+Topic: [main topic this question covers]
+
+Requirements:
+- Questions should cover key concepts from the content
+- Make options plausible and well-distributed
+- Provide detailed explanations that help with learning
+- Include specific references to the content in explanations
+- Vary question difficulty
+- Cover different aspects of the content
+
+Separate questions with blank lines."""
+        
+        # Generate questions for the entire text
+        response = generate_with_gemini(prompt)
+        print("Generated questions for the content")
+        
+        # Parse response and create QuizQuestion objects
+        all_questions = []
+        for q in response.split('\n\n'):
+            if 'Question:' in q:
+                try:
+                    question_data = {
+                        'question': q.split('Question:')[1].split('Options:')[0].strip(),
+                        'options': q.split('Options:')[1].split('Correct Answer:')[0].strip().split('\n'),
+                        'correct_answer': q.split('Correct Answer:')[1].split('Explanation:')[0].strip(),
+                        'explanation': q.split('Explanation:')[1].split('Type:')[0].strip(),
+                        'type': q.split('Type:')[1].split('Page:')[0].strip(),
+                        'page_number': int(q.split('Page:')[1].split('Line:')[0].strip()),
+                        'line_number': int(q.split('Line:')[1].split('Chapter:')[0].strip()),
+                        'chapter': q.split('Chapter:')[1].split('Topic:')[0].strip(),
+                        'topic': q.split('Topic:')[1].strip()
+                    }
+                    all_questions.append(QuizQuestion(**question_data))
+                except Exception as e:
+                    print(f"Error parsing question: {e}")
+                    continue
+        
+        print(f"Total questions generated: {len(all_questions)}")
+        return all_questions
+        
+    except Exception as e:
+        print(f"Error generating questions: {e}")
+        return []
 
 @app.post("/pdf/upload-chunk")
 async def upload_chunk(
@@ -301,8 +308,29 @@ async def finalize_upload(
             with open(chunk_path, "rb") as infile:
                 outfile.write(infile.read())
     
-    # Clean up chunks
-    shutil.rmtree(chunk_dir)
+    # Clean up chunks with retries
+    max_retries = 3
+    retry_delay = 1  # seconds
+    
+    for attempt in range(max_retries):
+        try:
+            # First try to remove individual files
+            for i in range(total_chunks):
+                chunk_path = chunk_dir / f"chunk_{i}"
+                if chunk_path.exists():
+                    chunk_path.unlink()
+            
+            # Then try to remove the directory
+            if chunk_dir.exists():
+                chunk_dir.rmdir()
+            break
+        except Exception as e:
+            print(f"Attempt {attempt + 1} to clean up chunks failed: {e}")
+            if attempt < max_retries - 1:
+                import time
+                time.sleep(retry_delay)
+            else:
+                print("Warning: Could not clean up chunks directory. Continuing with processing.")
 
     # Process the PDF
     try:
@@ -310,19 +338,20 @@ async def finalize_upload(
         with open(final_path, 'rb') as file:
             pdf_reader = PyPDF2.PdfReader(file)
             all_text = []
-            page_texts = []
             
             # Extract text from each page
             for page_num in range(len(pdf_reader.pages)):
                 page = pdf_reader.pages[page_num]
                 text = page.extract_text()
-                page_texts.append(text)
                 all_text.append(f"Page {page_num + 1}:\n{text}")
+
+            # Combine all text
+            combined_text = "\n\n".join(all_text)
 
             # Extract topics and chapters
             topics = []
             chapters = []
-            for page_num, text in enumerate(page_texts):
+            for page_num, text in enumerate(all_text):
                 # Extract topics
                 page_topics = extract_topics(text, page_num + 1, 0)
                 topics.extend(page_topics)
@@ -331,53 +360,15 @@ async def finalize_upload(
                 page_chapters = extract_chapters(text, page_num + 1)
                 chapters.extend(page_chapters)
 
-            # Generate quiz questions with references
-            prompt = (
-                "Generate quiz questions from the following text. For each question, provide:\n"
-                "1. The question\n"
-                "2. Options (for multiple choice)\n"
-                "3. Correct answer\n"
-                "4. Explanation\n"
-                "5. Type of question\n"
-                "6. Page number reference\n"
-                "7. Line number reference\n"
-                "8. Chapter reference (if applicable)\n"
-                "9. Topic reference (if applicable)\n\n"
-                f"Text content:\n{chr(10).join(all_text)}\n\n"
-                f"Chapters found:\n{json.dumps([{'name': c.name, 'number': c.number, 'page': c.page_number, 'line': c.line_number} for c in chapters], indent=2)}\n\n"
-                f"Topics found:\n{json.dumps([{'name': t.name, 'page': t.page_number, 'line': t.line_number} for t in topics], indent=2)}"
-            )
-            
-            response_text = generate_with_replicate(prompt)
-            print("----------------- response ----------------- \n", response_text)
-            
-            questions = []
-            
-            # Parse Replicate response and create QuizQuestion objects with references
-            for q in response_text.split('\n\n'):
-                if 'Question:' in q:
-                    try:
-                        question_data = {
-                            'question': q.split('Question:')[1].split('Options:')[0].strip(),
-                            'options': q.split('Options:')[1].split('Correct Answer:')[0].strip().split('\n'),
-                            'correct_answer': q.split('Correct Answer:')[1].split('Explanation:')[0].strip(),
-                            'explanation': q.split('Explanation:')[1].split('Type:')[0].strip(),
-                            'type': q.split('Type:')[1].split('Page:')[0].strip(),
-                            'page_number': int(q.split('Page:')[1].split('Line:')[0].strip()),
-                            'line_number': int(q.split('Line:')[1].split('Chapter:')[0].strip()),
-                            'chapter': q.split('Chapter:')[1].split('Topic:')[0].strip(),
-                            'topic': q.split('Topic:')[1].strip()
-                        }
-                        questions.append(QuizQuestion(**question_data))
-                    except Exception as e:
-                        print(f"Error parsing question: {e}")
-                        continue
+            # Generate quiz questions for the entire text
+            print("\nGenerating questions for the entire document")
+            all_questions = generate_quiz_questions(combined_text)
 
             # Save analysis results
             analysis = AnalysisResponse(
                 topics=topics,
                 chapters=chapters,
-                questions=questions
+                questions=all_questions
             )
             
             # Save to CSV
