@@ -456,7 +456,7 @@ Remember:
         
         # Add topic and chapter information to each question
         if topics and chapters:
-            print("chapters: " chapters)
+            print("chapters: ", chapters)
             print("topics: ", topics)
             for question in questions:
                 question['topic'] = find_best_matching_topic(question['question'], topics)
