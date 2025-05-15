@@ -302,7 +302,8 @@ Remember:
 - Include all required fields for each question type
 - Provide clear and concise explanations
 - Make sure questions are relevant to the text
-- Include a mix of different question types"""
+- Include a mix of different question types
+- For MCQs, always provide exactly 4 options (A, B, C, D)"""
 
         # Call Ollama API
         response = requests.post(
@@ -321,6 +322,7 @@ Remember:
         questions = []
         current_question = None
         current_type = None
+        collecting_options = False
         
         for line in response.json()["response"].split('\n'):
             line = line.strip()
@@ -339,8 +341,11 @@ Remember:
                     'correct_answer': '',
                     'explanation': '',
                     'page_number': page_number,
-                    'line_number': 0
+                    'line_number': 0,
+                    'chapter': '',
+                    'topic': ''
                 }
+                collecting_options = False
             elif line.startswith('TF:'):
                 if current_question:
                     questions.append(current_question)
@@ -352,8 +357,11 @@ Remember:
                     'correct_answer': '',
                     'explanation': '',
                     'page_number': page_number,
-                    'line_number': 0
+                    'line_number': 0,
+                    'chapter': '',
+                    'topic': ''
                 }
+                collecting_options = False
             elif line.startswith('FIB:'):
                 if current_question:
                     questions.append(current_question)
@@ -365,8 +373,11 @@ Remember:
                     'correct_answer': '',
                     'explanation': '',
                     'page_number': page_number,
-                    'line_number': 0
+                    'line_number': 0,
+                    'chapter': '',
+                    'topic': ''
                 }
+                collecting_options = False
             elif line.startswith('SA:'):
                 if current_question:
                     questions.append(current_question)
@@ -378,19 +389,26 @@ Remember:
                     'correct_answer': '',
                     'explanation': '',
                     'page_number': page_number,
-                    'line_number': 0
+                    'line_number': 0,
+                    'chapter': '',
+                    'topic': ''
                 }
+                collecting_options = False
             elif current_question:
                 if line.startswith('Options:'):
+                    collecting_options = True
                     continue
-                elif line.startswith('A)') or line.startswith('B)') or line.startswith('C)') or line.startswith('D)'):
+                elif collecting_options and (line.startswith('A)') or line.startswith('B)') or line.startswith('C)') or line.startswith('D)')):
                     current_question['options'].append(line[3:].strip())
                 elif line.startswith('Correct:'):
                     current_question['correct_answer'] = line[8:].strip()
+                    collecting_options = False
                 elif line.startswith('Answer:'):
                     current_question['correct_answer'] = line[7:].strip()
+                    collecting_options = False
                 elif line.startswith('Explanation:'):
                     current_question['explanation'] = line[12:].strip()
+                    collecting_options = False
                 elif '(Line:' in line:
                     # Extract line number from the question text
                     line_num_str = line[line.find('(Line:') + 6:line.find(')')].strip()
