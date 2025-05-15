@@ -233,6 +233,18 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     
     return chapters
 
+def parse_line_number(line_str: str) -> int:
+    """Parse line number, handling both single numbers and ranges"""
+    try:
+        # If it's a range (e.g., "4-5"), take the first number
+        if '-' in line_str:
+            return int(line_str.split('-')[0])
+        # Otherwise, try to parse as a single number
+        return int(line_str)
+    except (ValueError, IndexError):
+        # If parsing fails, return 0 as default
+        return 0
+
 def generate_quiz_questions(text: str, page_number: int = 1) -> List[QuizQuestion]:
     """Generate quiz questions using Gemini for the entire text"""
     try:
@@ -251,7 +263,7 @@ Correct Answer: [option]
 Explanation: [detailed explanation of why this is correct and why others are incorrect]
 Type: multiple_choice
 Page: [page number where the answer can be found]
-Line: [line number]
+Line: [line number or range, e.g., 4-5]
 Chapter: [chapter name or number if applicable]
 Topic: [main topic this question covers]
 
@@ -281,7 +293,7 @@ Separate questions with blank lines."""
                         'explanation': q.split('Explanation:')[1].split('Type:')[0].strip(),
                         'type': q.split('Type:')[1].split('Page:')[0].strip(),
                         'page_number': int(q.split('Page:')[1].split('Line:')[0].strip()),
-                        'line_number': int(q.split('Line:')[1].split('Chapter:')[0].strip()),
+                        'line_number': parse_line_number(q.split('Line:')[1].split('Chapter:')[0].strip()),
                         'chapter': q.split('Chapter:')[1].split('Topic:')[0].strip(),
                         'topic': q.split('Topic:')[1].strip()
                     }
