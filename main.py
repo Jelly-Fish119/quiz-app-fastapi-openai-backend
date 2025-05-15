@@ -461,6 +461,7 @@ Remember:
             for question in questions:
                 question['topic'] = find_best_matching_topic(question['question'], topics)
                 question['chapter'] = find_best_matching_chapter(question['question'], chapters)
+                print("question: ", question)
             
         return questions
         
