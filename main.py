@@ -453,8 +453,10 @@ Remember:
         # Add the last question if exists
         if current_question:
             questions.append(current_question)
-        
+
         # Add topic and chapter information to each question
+        print("topics: ", topics)
+        print("chapters: ", chapters)
         if topics and chapters:
             print("chapters: ", chapters)
             print("topics: ", topics)
@@ -557,6 +559,7 @@ async def finalize_upload(
             # Extract topics and chapters
             topics = []
             chapters = []
+            
             for page_num, text in enumerate(all_text):
                 # Extract topics
                 page_topics = extract_topics(text, page_num + 1, 0)
