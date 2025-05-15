@@ -45,7 +45,7 @@ if not GOOGLE_API_KEY:
     raise ValueError("GOOGLE_API_KEY environment variable is not set")
 
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel('gemini-pro')
+model = genai.GenerativeModel('gemini-1.5-flash')
 
 def generate_with_gemini(prompt: str, max_retries: int = 3) -> str:
     """Generate text using Gemini API with retries"""
