@@ -233,16 +233,21 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     
     return chapters
 
-def parse_line_number(line_str: str) -> int:
-    """Parse line number, handling both single numbers and ranges"""
+def parse_line_number(line_number: str) -> int:
+    """Parse line number from string, handling various formats."""
     try:
-        # If it's a range (e.g., "4-5"), take the first number
-        if '-' in line_str:
-            return int(line_str.split('-')[0])
-        # Otherwise, try to parse as a single number
-        return int(line_str)
+        # Remove markdown formatting and whitespace
+        cleaned = line_number.replace('*', '').replace('\n', '').strip()
+        
+        # Handle range format (e.g., "2,3" or "2-3")
+        if ',' in cleaned:
+            return int(cleaned.split(',')[0])
+        elif '-' in cleaned:
+            return int(cleaned.split('-')[0])
+        
+        # Handle single number
+        return int(cleaned)
     except (ValueError, IndexError):
-        # If parsing fails, return 0 as default
         return 0
 
 def parse_question_options(options_str: str, question_type: str) -> List[str]:
@@ -257,127 +262,150 @@ def parse_question_options(options_str: str, question_type: str) -> List[str]:
         return []  # Short answer questions don't have options
     return []
 
-def generate_quiz_questions(text: str, page_number: int = 1) -> List[QuizQuestion]:
-    """Generate quiz questions using Gemini for the entire text"""
+def generate_quiz_questions(page_text: str, page_number: int) -> List[QuizQuestion]:
+    """Generate quiz questions for a single page using Ollama."""
     try:
-        # Create a comprehensive prompt for the entire text
-        prompt = f"""Create 15-20 high-quality quiz questions for this educational content. Include a mix of different question types:
+        # Create a prompt that specifies the exact format for each question type
+        prompt = f"""Generate 3-4 quiz questions from the following text. Each question should be on a new line and follow this exact format:
 
-{text[:4000]}  # Limit text to first 4000 characters to avoid token limits
+For Multiple Choice Questions:
+MCQ: [Question text] (Line: [line number])
+Options:
+A) [Option 1]
+B) [Option 2]
+C) [Option 3]
+D) [Option 4]
+Correct: [A/B/C/D]
+Explanation: [Brief explanation]
 
-For each question, follow the appropriate format based on its type:
+For True/False Questions:
+TF: [Question text] (Line: [line number])
+Correct: [True/False]
+Explanation: [Brief explanation]
 
-1. Multiple Choice Questions (MCQ):
-Question: [clear, specific question]
-Type: multiple_choice
-Options: [A]
-[B]
-[C]
-[D]
-Correct Answer: [option]
-Explanation: [detailed explanation]
-Page: [page number]
-Line: [line number or range]
-Chapter: [chapter name]
-Topic: [topic]
+For Fill in the Blank Questions:
+FIB: [Question text with _____ for blank] (Line: [line number])
+Answer: [Correct answer]
+Explanation: [Brief explanation]
 
-2. True/False Questions:
-Question: [statement to evaluate]
-Type: true_false
-Correct Answer: [True/False]
-Explanation: [detailed explanation]
-Page: [page number]
-Line: [line number or range]
-Chapter: [chapter name]
-Topic: [topic]
+For Short Answer Questions:
+SA: [Question text] (Line: [line number])
+Answer: [Expected answer]
+Explanation: [Brief explanation]
 
-3. Fill in the Blank Questions:
-Question: [sentence with _____ for the blank]
-Type: fill_blank
-Correct Answer: [the word or phrase that fills the blank]
-Explanation: [detailed explanation]
-Page: [page number]
-Line: [line number or range]
-Chapter: [chapter name]
-Topic: [topic]
+Text to generate questions from:
+{page_text}
 
-4. Short Answer Questions:
-Question: [open-ended question]
-Type: short_answer
-Correct Answer: [key points that should be in the answer]
-Explanation: [detailed explanation]
-Page: [page number]
-Line: [line number or range]
-Chapter: [chapter name]
-Topic: [topic]
+Remember:
+- Line numbers should be simple numbers (e.g., "1" or "2-3")
+- Each question must be on a new line
+- Include all required fields for each question type
+- Provide clear and concise explanations
+- Make sure questions are relevant to the text
+- Include a mix of different question types"""
 
-Requirements:
-- Create a balanced mix of all question types
-- Questions should cover key concepts from the content
-- Make MCQ options plausible and well-distributed
-- Provide detailed explanations that help with learning
-- Include specific references to the content in explanations
-- Vary question difficulty
-- Cover different aspects of the content
-
-Separate questions with blank lines."""
+        # Call Ollama API
+        response = requests.post(
+            "http://localhost:11434/api/generate",
+            json={
+                "model": "llama2",
+                "prompt": prompt,
+                "stream": False
+            }
+        )
         
-        # Generate questions for the entire text
-        response = generate_with_gemini(prompt)
-        print("Generated questions for the content")
+        if response.status_code != 200:
+            raise Exception(f"Ollama API error: {response.text}")
+            
+        # Parse the response
+        questions = []
+        current_question = None
+        current_type = None
         
-        # Parse response and create QuizQuestion objects
-        all_questions = []
-        for q in response.split('\n\n'):
-            if 'Question:' in q:
-                try:
-                    # Extract question type first as it affects how we parse other fields
-                    question_type = q.split('Type:')[1].split('\n')[0].strip()
-                    
-                    # Parse the question text
-                    question_text = q.split('Question:')[1].split('Type:')[0].strip()
-                    
-                    # Parse options based on question type
-                    options = []
-                    if 'Options:' in q:
-                        options = parse_question_options(
-                            q.split('Options:')[1].split('Correct Answer:')[0].strip(),
-                            question_type
-                        )
-                    
-                    # Parse correct answer
-                    correct_answer = q.split('Correct Answer:')[1].split('Explanation:')[0].strip()
-                    
-                    # Parse explanation
-                    explanation = q.split('Explanation:')[1].split('Page:')[0].strip()
-                    
-                    # Parse metadata
-                    page_num = int(q.split('Page:')[1].split('Line:')[0].strip())
-                    line_num = parse_line_number(q.split('Line:')[1].split('Chapter:')[0].strip())
-                    chapter = q.split('Chapter:')[1].split('Topic:')[0].strip()
-                    topic = q.split('Topic:')[1].strip()
-                    
-                    question_data = {
-                        'question': question_text,
-                        'options': options,
-                        'correct_answer': correct_answer,
-                        'explanation': explanation,
-                        'type': question_type,
-                        'page_number': page_num,
-                        'line_number': line_num,
-                        'chapter': chapter,
-                        'topic': topic
-                    }
-                    all_questions.append(QuizQuestion(**question_data))
-                except Exception as e:
-                    print(f"Error parsing question: {e}")
+        for line in response.json()["response"].split('\n'):
+            line = line.strip()
+            if not line:
+                continue
+                
+            # Check for question type
+            if line.startswith('MCQ:'):
+                if current_question:
+                    questions.append(current_question)
+                current_type = 'multiple_choice'
+                current_question = {
+                    'type': current_type,
+                    'question': line[4:].strip(),
+                    'options': [],
+                    'correct_answer': '',
+                    'explanation': '',
+                    'page_number': page_number,
+                    'line_number': 0
+                }
+            elif line.startswith('TF:'):
+                if current_question:
+                    questions.append(current_question)
+                current_type = 'true_false'
+                current_question = {
+                    'type': current_type,
+                    'question': line[3:].strip(),
+                    'options': ['True', 'False'],
+                    'correct_answer': '',
+                    'explanation': '',
+                    'page_number': page_number,
+                    'line_number': 0
+                }
+            elif line.startswith('FIB:'):
+                if current_question:
+                    questions.append(current_question)
+                current_type = 'fill_blank'
+                current_question = {
+                    'type': current_type,
+                    'question': line[4:].strip(),
+                    'options': [],
+                    'correct_answer': '',
+                    'explanation': '',
+                    'page_number': page_number,
+                    'line_number': 0
+                }
+            elif line.startswith('SA:'):
+                if current_question:
+                    questions.append(current_question)
+                current_type = 'short_answer'
+                current_question = {
+                    'type': current_type,
+                    'question': line[3:].strip(),
+                    'options': [],
+                    'correct_answer': '',
+                    'explanation': '',
+                    'page_number': page_number,
+                    'line_number': 0
+                }
+            elif current_question:
+                if line.startswith('Options:'):
                     continue
+                elif line.startswith('A)') or line.startswith('B)') or line.startswith('C)') or line.startswith('D)'):
+                    current_question['options'].append(line[3:].strip())
+                elif line.startswith('Correct:'):
+                    current_question['correct_answer'] = line[8:].strip()
+                elif line.startswith('Answer:'):
+                    current_question['correct_answer'] = line[7:].strip()
+                elif line.startswith('Explanation:'):
+                    current_question['explanation'] = line[12:].strip()
+                elif '(Line:' in line:
+                    # Extract line number from the question text
+                    line_num_str = line[line.find('(Line:') + 6:line.find(')')].strip()
+                    current_question['line_number'] = parse_line_number(line_num_str)
+                    # Remove the line number from the question text
+                    current_question['question'] = line[:line.find('(Line:')].strip()
         
-        print(f"Total questions generated: {len(all_questions)}")
-        return all_questions
+        # Add the last question if exists
+        if current_question:
+            questions.append(current_question)
+            
+        return questions
         
     except Exception as e:
-        print(f"Error generating questions: {e}")
+        print(f"Error generating questions: {str(e)}")
         return []
 
 @app.post("/pdf/upload-chunk")
@@ -479,7 +507,7 @@ async def finalize_upload(
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
-            all_questions = generate_quiz_questions(combined_text)
+            all_questions = generate_quiz_questions(combined_text, page_num + 1)
 
             # Save analysis results
             analysis = AnalysisResponse(
