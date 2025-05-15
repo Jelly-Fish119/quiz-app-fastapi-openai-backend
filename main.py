@@ -306,7 +306,33 @@ def find_best_matching_chapter(question_text: str, chapters: List[Chapter]) -> s
     best_chapter = max(chapter_scores, key=lambda x: x[1])
     return best_chapter[0] if best_chapter[1] > 0 else ""
 
-def generate_quiz_questions(page_text: str, page_number: int, topics: List[Topic] = None, chapters: List[Chapter] = None) -> List[QuizQuestion]:
+def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
+    """Find the best matching page number for a question using text similarity."""
+    if not pages_text:
+        return 1
+    
+    # Convert question to lowercase for better matching
+    question_lower = question_text.lower()
+    question_words = set(question_lower.split())
+    
+    # Score each page based on word overlap
+    page_scores = []
+    for i, page_text in enumerate(pages_text):
+        # Convert page text to lowercase and get unique words
+        page_lower = page_text.lower()
+        page_words = set(page_lower.split())
+        
+        # Calculate word overlap score
+        common_words = question_words.intersection(page_words)
+        score = len(common_words) / len(question_words) if question_words else 0
+        
+        page_scores.append((i + 1, score))  # i + 1 because pages are 1-indexed
+    
+    # Return the page with the highest score
+    best_page = max(page_scores, key=lambda x: x[1])
+    return best_page[0] if best_page[1] > 0 else 1
+
+def generate_quiz_questions(page_text: str, topics: List[Topic] = None, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     print("-----------------page number: ", page_number)
     try:
@@ -375,7 +401,7 @@ Remember:
                     'options': [],
                     'correct_answer': '',
                     'explanation': '',
-                    'page_number': page_number,
+                    'page_number': 0,
                     'line_number': 0,
                     'chapter': '',
                     'topic': ''
@@ -454,8 +480,8 @@ Remember:
         # Add the last question if exists
         if current_question:
             questions.append(current_question)
-
-        # Add topic and chapter information to each question
+        
+        # Add topic, chapter, and page number information to each question
         print("topics: ", topics)
         print("chapters: ", chapters)
         if topics or chapters:
@@ -464,6 +490,8 @@ Remember:
             for question in questions:
                 question['topic'] = find_best_matching_topic(question['question'], topics)
                 question['chapter'] = find_best_matching_chapter(question['question'], chapters)
+                if all_pages_text:
+                    question['page_number'] = find_best_matching_page(question['question'], all_pages_text)
                 print("question: ", question)
             
         return questions
@@ -572,7 +600,7 @@ async def finalize_upload(
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
-            all_questions = generate_quiz_questions(combined_text, page_num + 1, topics, chapters)
+            all_questions = generate_quiz_questions(combined_text, page_num + 1, topics, chapters, all_text)
 
             # Save analysis results
             analysis = AnalysisResponse(
@@ -596,6 +624,7 @@ async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
     all_topics = []
     all_chapters = []
     all_questions = []
+    all_pages_text = [page.text for page in pages]  # Store all page texts for matching
     
     for page in pages:
         # Extract topics
@@ -606,8 +635,8 @@ async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
         chapters = extract_chapters(page.text, page.page_number)
         all_chapters.extend(chapters)
         
-        # Generate quiz questions with topics and chapters
-        questions = generate_quiz_questions(page.text, page.page_number, all_topics, all_chapters)
+        # Generate quiz questions with topics, chapters, and all pages text
+        questions = generate_quiz_questions(page.text, page.page_number, all_topics, all_chapters, all_pages_text)
         all_questions.extend(questions)
     
     # Create response
