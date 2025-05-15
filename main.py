@@ -457,7 +457,7 @@ Remember:
         # Add topic and chapter information to each question
         print("topics: ", topics)
         print("chapters: ", chapters)
-        if topics and chapters:
+        if topics or chapters:
             print("chapters: ", chapters)
             print("topics: ", topics)
             for question in questions:
