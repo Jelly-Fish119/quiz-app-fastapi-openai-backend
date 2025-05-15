@@ -417,7 +417,7 @@ Remember:
                     'options': ['True', 'False'],
                     'correct_answer': '',
                     'explanation': '',
-                    'page_number': page_number,
+                    'page_number': 0,
                     'line_number': 0,
                     'chapter': '',
                     'topic': ''
@@ -600,7 +600,7 @@ async def finalize_upload(
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
-            all_questions = generate_quiz_questions(combined_text, page_num + 1, topics, chapters, all_text)
+            all_questions = generate_quiz_questions(combined_text, topics, chapters, all_text)
 
             # Save analysis results
             analysis = AnalysisResponse(
@@ -636,7 +636,7 @@ async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
         all_chapters.extend(chapters)
         
         # Generate quiz questions with topics, chapters, and all pages text
-        questions = generate_quiz_questions(page.text, page.page_number, all_topics, all_chapters, all_pages_text)
+        questions = generate_quiz_questions(page.text, all_topics, all_chapters, all_pages_text)
         all_questions.extend(questions)
     
     # Create response
