@@ -245,31 +245,76 @@ def parse_line_number(line_str: str) -> int:
         # If parsing fails, return 0 as default
         return 0
 
+def parse_question_options(options_str: str, question_type: str) -> List[str]:
+    """Parse options based on question type"""
+    if question_type == 'multiple_choice':
+        return options_str.strip().split('\n')
+    elif question_type == 'true_false':
+        return ['True', 'False']
+    elif question_type == 'fill_blank':
+        return []  # Fill in the blank questions don't have options
+    elif question_type == 'short_answer':
+        return []  # Short answer questions don't have options
+    return []
+
 def generate_quiz_questions(text: str, page_number: int = 1) -> List[QuizQuestion]:
     """Generate quiz questions using Gemini for the entire text"""
     try:
         # Create a comprehensive prompt for the entire text
-        prompt = f"""Create 10-15 high-quality quiz questions for this educational content:
+        prompt = f"""Create 15-20 high-quality quiz questions for this educational content. Include a mix of different question types:
 
 {text[:4000]}  # Limit text to first 4000 characters to avoid token limits
 
-Format each question as:
-Question: [clear, specific question about the content]
+For each question, follow the appropriate format based on its type:
+
+1. Multiple Choice Questions (MCQ):
+Question: [clear, specific question]
+Type: multiple_choice
 Options: [A]
 [B]
 [C]
 [D]
 Correct Answer: [option]
-Explanation: [detailed explanation of why this is correct and why others are incorrect]
-Type: multiple_choice
-Page: [page number where the answer can be found]
-Line: [line number or range, e.g., 4-5]
-Chapter: [chapter name or number if applicable]
-Topic: [main topic this question covers]
+Explanation: [detailed explanation]
+Page: [page number]
+Line: [line number or range]
+Chapter: [chapter name]
+Topic: [topic]
+
+2. True/False Questions:
+Question: [statement to evaluate]
+Type: true_false
+Correct Answer: [True/False]
+Explanation: [detailed explanation]
+Page: [page number]
+Line: [line number or range]
+Chapter: [chapter name]
+Topic: [topic]
+
+3. Fill in the Blank Questions:
+Question: [sentence with _____ for the blank]
+Type: fill_blank
+Correct Answer: [the word or phrase that fills the blank]
+Explanation: [detailed explanation]
+Page: [page number]
+Line: [line number or range]
+Chapter: [chapter name]
+Topic: [topic]
+
+4. Short Answer Questions:
+Question: [open-ended question]
+Type: short_answer
+Correct Answer: [key points that should be in the answer]
+Explanation: [detailed explanation]
+Page: [page number]
+Line: [line number or range]
+Chapter: [chapter name]
+Topic: [topic]
 
 Requirements:
+- Create a balanced mix of all question types
 - Questions should cover key concepts from the content
-- Make options plausible and well-distributed
+- Make MCQ options plausible and well-distributed
 - Provide detailed explanations that help with learning
 - Include specific references to the content in explanations
 - Vary question difficulty
@@ -286,16 +331,42 @@ Separate questions with blank lines."""
         for q in response.split('\n\n'):
             if 'Question:' in q:
                 try:
+                    # Extract question type first as it affects how we parse other fields
+                    question_type = q.split('Type:')[1].split('\n')[0].strip()
+                    
+                    # Parse the question text
+                    question_text = q.split('Question:')[1].split('Type:')[0].strip()
+                    
+                    # Parse options based on question type
+                    options = []
+                    if 'Options:' in q:
+                        options = parse_question_options(
+                            q.split('Options:')[1].split('Correct Answer:')[0].strip(),
+                            question_type
+                        )
+                    
+                    # Parse correct answer
+                    correct_answer = q.split('Correct Answer:')[1].split('Explanation:')[0].strip()
+                    
+                    # Parse explanation
+                    explanation = q.split('Explanation:')[1].split('Page:')[0].strip()
+                    
+                    # Parse metadata
+                    page_num = int(q.split('Page:')[1].split('Line:')[0].strip())
+                    line_num = parse_line_number(q.split('Line:')[1].split('Chapter:')[0].strip())
+                    chapter = q.split('Chapter:')[1].split('Topic:')[0].strip()
+                    topic = q.split('Topic:')[1].strip()
+                    
                     question_data = {
-                        'question': q.split('Question:')[1].split('Options:')[0].strip(),
-                        'options': q.split('Options:')[1].split('Correct Answer:')[0].strip().split('\n'),
-                        'correct_answer': q.split('Correct Answer:')[1].split('Explanation:')[0].strip(),
-                        'explanation': q.split('Explanation:')[1].split('Type:')[0].strip(),
-                        'type': q.split('Type:')[1].split('Page:')[0].strip(),
-                        'page_number': int(q.split('Page:')[1].split('Line:')[0].strip()),
-                        'line_number': parse_line_number(q.split('Line:')[1].split('Chapter:')[0].strip()),
-                        'chapter': q.split('Chapter:')[1].split('Topic:')[0].strip(),
-                        'topic': q.split('Topic:')[1].strip()
+                        'question': question_text,
+                        'options': options,
+                        'correct_answer': correct_answer,
+                        'explanation': explanation,
+                        'type': question_type,
+                        'page_number': page_num,
+                        'line_number': line_num,
+                        'chapter': chapter,
+                        'topic': topic
                     }
                     all_questions.append(QuizQuestion(**question_data))
                 except Exception as e:
