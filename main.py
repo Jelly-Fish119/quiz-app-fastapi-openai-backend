@@ -114,6 +114,22 @@ def save_to_csv(data: dict, filename: str):
     """Save analysis data to CSV file"""
     csv_path = UPLOAD_DIR / f"{filename}.csv"
     
+    # Define all possible fields
+    fieldnames = [
+        'type',
+        'name',
+        'confidence',
+        'page_number',
+        'line_number',
+        'question',
+        'options',
+        'correct_answer',
+        'explanation',
+        'question_type',
+        'chapter',
+        'topic'
+    ]
+    
     # Convert data to flat structure for CSV
     rows = []
     for topic in data['topics']:
@@ -122,7 +138,14 @@ def save_to_csv(data: dict, filename: str):
             'name': topic['name'],
             'confidence': topic['confidence'],
             'page_number': topic['page_number'],
-            'line_number': topic['line_number']
+            'line_number': topic['line_number'],
+            'question': '',
+            'options': '',
+            'correct_answer': '',
+            'explanation': '',
+            'question_type': '',
+            'chapter': '',
+            'topic': ''
         })
     
     for chapter in data['chapters']:
@@ -131,24 +154,35 @@ def save_to_csv(data: dict, filename: str):
             'name': chapter['name'],
             'confidence': chapter['confidence'],
             'page_number': chapter['page_number'],
-            'line_number': chapter['line_number']
+            'line_number': chapter['line_number'],
+            'question': '',
+            'options': '',
+            'correct_answer': '',
+            'explanation': '',
+            'question_type': '',
+            'chapter': '',
+            'topic': ''
         })
     
     for question in data['questions']:
         rows.append({
             'type': 'question',
+            'name': '',
+            'confidence': '',
+            'page_number': question['page_number'],
+            'line_number': question['line_number'],
             'question': question['question'],
             'options': json.dumps(question['options']),
             'correct_answer': question['correct_answer'],
             'explanation': question['explanation'],
             'question_type': question['type'],
-            'page_number': question['page_number'],
-            'line_number': question['line_number']
+            'chapter': question['chapter'],
+            'topic': question['topic']
         })
     
     # Write to CSV
     with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=rows[0].keys())
+        writer = csv.DictWriter(f, fieldnames=fieldnames)
         writer.writeheader()
         writer.writerows(rows)
 
