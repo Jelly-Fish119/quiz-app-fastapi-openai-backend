@@ -266,7 +266,7 @@ def generate_quiz_questions(page_text: str, page_number: int) -> List[QuizQuesti
     """Generate quiz questions for a single page using Gemini."""
     try:
         # Create a prompt that specifies the exact format for each question type
-        prompt = f"""Generate 3-4 quiz questions from the following text. Each question should be on a new line and follow this exact format:
+        prompt = f"""Generate as much as possible quiz questions from the following text. Each question should be on a new line and follow this exact format:
 
 For Multiple Choice Questions:
 MCQ: [Question text] (Line: [line number])
