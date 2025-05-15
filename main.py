@@ -400,7 +400,7 @@ Remember:
                     'options': [],
                     'correct_answer': '',
                     'explanation': '',
-                    'page_number': 0,
+                    'page_number': 0,  # Will be set later
                     'line_number': 0,
                     'chapter': '',
                     'topic': ''
@@ -416,7 +416,7 @@ Remember:
                     'options': ['True', 'False'],
                     'correct_answer': '',
                     'explanation': '',
-                    'page_number': 0,
+                    'page_number': 0,  # Will be set later
                     'line_number': 0,
                     'chapter': '',
                     'topic': ''
@@ -432,7 +432,7 @@ Remember:
                     'options': [],
                     'correct_answer': '',
                     'explanation': '',
-                    'page_number': page_number,
+                    'page_number': 0,  # Will be set later
                     'line_number': 0,
                     'chapter': '',
                     'topic': ''
@@ -448,7 +448,7 @@ Remember:
                     'options': [],
                     'correct_answer': '',
                     'explanation': '',
-                    'page_number': page_number,
+                    'page_number': 0,  # Will be set later
                     'line_number': 0,
                     'chapter': '',
                     'topic': ''
