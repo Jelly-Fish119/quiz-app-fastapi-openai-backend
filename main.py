@@ -398,15 +398,14 @@ def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_
     """Generate quiz questions for a single page using Gemini."""
     try:
         page_number = int(page_text.split('\n')[0].split(':')[0].split()[1])
-        page_content = '\n'.join(page_text.split('\n')[1:])  # Remove the "Page X:" line
 
         # Create a prompt that asks for both topics and questions
         prompt = f"""Analyze the following text and:
-1. Then generate quiz questions as much as possible regarding the page content and add page number to the question
+1. Then generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
 2. First identify the 2 ~ 3 most important topics for the every quiz question
 
 Text:
-{page_content}
+{page_text}
 
 First, list the topics in this format:
 Topics:
