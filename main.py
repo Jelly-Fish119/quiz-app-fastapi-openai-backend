@@ -433,7 +433,7 @@ def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_
         # Create a prompt that asks for both topics and questions
         prompt = f"""Analyze the following text and:
 1. Then generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
-2. First identify the 2 ~ 3 most important topics on this page for the corresponding quiz question
+2. First identify the 2 ~ 3 most important topics for the every quiz question
 3. Get Chapter number and title for the every quiz question, Extract Chapter number and title from page text.
 Text:
 {page_text}
@@ -620,7 +620,7 @@ Remember:
                             current_question['chapter_title'] = chapter_parts[1].strip()
                         else:
                             current_question['chapter_number'] = ''
-                            current_question['chapter_title'] = ''
+                            
                         collecting_options = False
                     elif line.startswith('Page:'):
                         # Extract page number from the response
