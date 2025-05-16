@@ -457,7 +457,8 @@ Remember:
 - Include a mix of different question types
 - For MCQs, always provide exactly 4 options (A, B, C, D)
 - Questions should test understanding of the key topics
-- Ensure questions are specific to the content on this page"""
+- Ensure questions are specific to the content on this page
+- Add page number to the question """
 
         # Call Gemini API
         response = generate_with_gemini(prompt)
