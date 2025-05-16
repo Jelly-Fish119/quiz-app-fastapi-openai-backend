@@ -397,11 +397,30 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
 def generate_quiz_questions(page_text: str, topics: List[Topic] = None, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     try:
-        # Create a prompt that specifies the exact format for each question type
-        prompt = f"""Generate as much as possible quiz questions from the following text. Each question should be on a new line and follow this exact format:
+        page_number = int(page_text.split('\n')[0].split(':')[0].split()[1])
+        page_content = '\n'.join(page_text.split('\n')[1:])  # Remove the "Page X:" line
+
+        # Create a prompt that asks for both topics and questions
+        prompt = f"""Analyze the following text and:
+1. First identify the 5 most important topics or concepts with their confidence scores
+2. Then generate quiz questions focusing on these topics and the page content
+
+Text:
+{page_content}
+
+First, list the topics in this format:
+Topics:
+Topic 1 (confidence: X.XX)
+Topic 2 (confidence: X.XX)
+Topic 3 (confidence: X.XX)
+Topic 4 (confidence: X.XX)
+Topic 5 (confidence: X.XX)
+
+Then, generate quiz questions following this exact format:
 
 For Multiple Choice Questions:
 MCQ: [Question text] (Line: [line number])
+Topics: [List of relevant topics from above]
 Options:
 A) [Option 1]
 B) [Option 2]
@@ -412,30 +431,33 @@ Explanation: [Brief explanation]
 
 For True/False Questions:
 TF: [Question text] (Line: [line number])
+Topics: [List of relevant topics from above]
 Correct: [True/False]
 Explanation: [Brief explanation]
 
 For Fill in the Blank Questions:
 FIB: [Question text with _____ for blank] (Line: [line number])
+Topics: [List of relevant topics from above]
 Answer: [Correct answer]
 Explanation: [Brief explanation]
 
 For Short Answer Questions:
 SA: [Question text] (Line: [line number])
+Topics: [List of relevant topics from above]
 Answer: [Expected answer]
 Explanation: [Brief explanation]
 
-Text to generate questions from:
-{page_text}
-
 Remember:
+- Focus on the key topics you identified
 - Line numbers should be simple numbers (e.g., "1" or "2-3")
 - Each question must be on a new line
 - Include all required fields for each question type
 - Provide clear and concise explanations
-- Make sure questions are relevant to the text
+- Make sure questions are relevant to the text and topics
 - Include a mix of different question types
-- For MCQs, always provide exactly 4 options (A, B, C, D)"""
+- For MCQs, always provide exactly 4 options (A, B, C, D)
+- Questions should test understanding of the key topics
+- Ensure questions are specific to the content on this page"""
 
         # Call Gemini API
         response = generate_with_gemini(prompt)
@@ -445,107 +467,130 @@ Remember:
         current_question = None
         current_type = None
         collecting_options = False
+        page_topics = []
+        parsing_topics = True
         
         for line in response.split('\n'):
             line = line.strip()
             if not line:
                 continue
                 
-            # Check for question type
-            if line.startswith('MCQ:'):
-                if current_question:
-                    questions.append(current_question)
-                current_type = 'multiple_choice'
-                current_question = {
-                    'type': current_type,
-                    'question': line[4:].strip(),
-                    'options': [],
-                    'correct_answer': '',
-                    'explanation': '',
-                    'page_number': 0,  # Will be set later
-                    'line_number': 0,
-                    'chapter': '',
-                    'topic': ''
-                }
-                collecting_options = False
-            elif line.startswith('TF:'):
-                if current_question:
-                    questions.append(current_question)
-                current_type = 'true_false'
-                current_question = {
-                    'type': current_type,
-                    'question': line[3:].strip(),
-                    'options': ['True', 'False'],
-                    'correct_answer': '',
-                    'explanation': '',
-                    'page_number': 0,  # Will be set later
-                    'line_number': 0,
-                    'chapter': '',
-                    'topic': ''
-                }
-                collecting_options = False
-            elif line.startswith('FIB:'):
-                if current_question:
-                    questions.append(current_question)
-                current_type = 'fill_blank'
-                current_question = {
-                    'type': current_type,
-                    'question': line[4:].strip(),
-                    'options': [],
-                    'correct_answer': '',
-                    'explanation': '',
-                    'page_number': 0,  # Will be set later
-                    'line_number': 0,
-                    'chapter': '',
-                    'topic': ''
-                }
-                collecting_options = False
-            elif line.startswith('SA:'):
-                if current_question:
-                    questions.append(current_question)
-                current_type = 'short_answer'
-                current_question = {
-                    'type': current_type,
-                    'question': line[3:].strip(),
-                    'options': [],
-                    'correct_answer': '',
-                    'explanation': '',
-                    'page_number': 0,  # Will be set later
-                    'line_number': 0,
-                    'chapter': '',
-                    'topic': ''
-                }
-                collecting_options = False
-            elif current_question:
-                if line.startswith('Options:'):
-                    collecting_options = True
+            # Parse topics section
+            if parsing_topics:
+                if line.startswith('Topics:'):
                     continue
-                elif collecting_options and (line.startswith('A)') or line.startswith('B)') or line.startswith('C)') or line.startswith('D)')):
-                    current_question['options'].append(line[3:].strip())
-                elif line.startswith('Correct:'):
-                    current_question['correct_answer'] = line[8:].strip()
+                elif '(' in line and ')' in line and 'confidence:' in line.lower():
+                    topic_name = line[:line.find('(')].strip()
+                    confidence = float(line[line.find('(')+1:line.find(')')].split(':')[1].strip())
+                    page_topics.append(Topic(
+                        name=topic_name,
+                        confidence=confidence,
+                        page_number=page_number,
+                        line_number=0
+                    ))
+                elif line.startswith('MCQ:') or line.startswith('TF:') or line.startswith('FIB:') or line.startswith('SA:'):
+                    parsing_topics = False
+                    # Continue with question parsing
+                
+            # Parse questions section
+            if not parsing_topics:
+                if line.startswith('MCQ:'):
+                    if current_question:
+                        questions.append(current_question)
+                    current_type = 'multiple_choice'
+                    current_question = {
+                        'type': current_type,
+                        'question': line[4:].strip(),
+                        'options': [],
+                        'correct_answer': '',
+                        'explanation': '',
+                        'page_number': page_number,
+                        'line_number': 0,
+                        'chapter': '',
+                        'topic': ''
+                    }
                     collecting_options = False
-                elif line.startswith('Answer:'):
-                    current_question['correct_answer'] = line[7:].strip()
+                elif line.startswith('TF:'):
+                    if current_question:
+                        questions.append(current_question)
+                    current_type = 'true_false'
+                    current_question = {
+                        'type': current_type,
+                        'question': line[3:].strip(),
+                        'options': ['True', 'False'],
+                        'correct_answer': '',
+                        'explanation': '',
+                        'page_number': page_number,
+                        'line_number': 0,
+                        'chapter': '',
+                        'topic': ''
+                    }
                     collecting_options = False
-                elif line.startswith('Explanation:'):
-                    current_question['explanation'] = line[12:].strip()
+                elif line.startswith('FIB:'):
+                    if current_question:
+                        questions.append(current_question)
+                    current_type = 'fill_blank'
+                    current_question = {
+                        'type': current_type,
+                        'question': line[4:].strip(),
+                        'options': [],
+                        'correct_answer': '',
+                        'explanation': '',
+                        'page_number': page_number,
+                        'line_number': 0,
+                        'chapter': '',
+                        'topic': ''
+                    }
                     collecting_options = False
-                elif '(Line:' in line:
-                    # Extract line number from the question text
-                    line_num_str = line[line.find('(Line:') + 6:line.find(')')].strip()
-                    current_question['line_number'] = parse_line_number(line_num_str)
-                    # Remove the line number from the question text
-                    current_question['question'] = line[:line.find('(Line:')].strip()
+                elif line.startswith('SA:'):
+                    if current_question:
+                        questions.append(current_question)
+                    current_type = 'short_answer'
+                    current_question = {
+                        'type': current_type,
+                        'question': line[3:].strip(),
+                        'options': [],
+                        'correct_answer': '',
+                        'explanation': '',
+                        'page_number': page_number,
+                        'line_number': 0,
+                        'chapter': '',
+                        'topic': ''
+                    }
+                    collecting_options = False
+                elif current_question:
+                    if line.startswith('Topics:'):
+                        # Extract topics for this question
+                        topics_str = line[7:].strip()
+                        current_question['topic'] = topics_str
+                    elif line.startswith('Options:'):
+                        collecting_options = True
+                        continue
+                    elif collecting_options and (line.startswith('A)') or line.startswith('B)') or line.startswith('C)') or line.startswith('D)')):
+                        current_question['options'].append(line[3:].strip())
+                    elif line.startswith('Correct:'):
+                        current_question['correct_answer'] = line[8:].strip()
+                        collecting_options = False
+                    elif line.startswith('Answer:'):
+                        current_question['correct_answer'] = line[7:].strip()
+                        collecting_options = False
+                    elif line.startswith('Explanation:'):
+                        current_question['explanation'] = line[12:].strip()
+                        collecting_options = False
+                    elif '(Line:' in line:
+                        # Extract line number from the question text
+                        line_num_str = line[line.find('(Line:') + 6:line.find(')')].strip()
+                        current_question['line_number'] = parse_line_number(line_num_str)
+                        # Remove the line number from the question text
+                        current_question['question'] = line[:line.find('(Line:')].strip()
         
         # Add the last question if exists
         if current_question:
             questions.append(current_question)
         
-        # Add topic, chapter, and page number information to each question
-        if topics or chapters:
+        # Add chapter and page number information to each question
+        if chapters:
             for question in questions:
-                question['topic'] = find_best_matching_topics(question['question'], topics)
                 question['chapter'] = find_best_matching_chapter(question['question'], chapters)
                 if all_pages_text:
                     question['page_number'] = find_best_matching_page(question['question'], all_pages_text)
