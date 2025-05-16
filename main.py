@@ -322,11 +322,14 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
                     try:
                         if chapter_num.isdigit():
                             chapter_num = int(chapter_num)
+                        elif chapter_num.isalpha() and len(chapter_num) == 1:
+                            # For single letters (A-Z), convert to number (1-26)
+                            chapter_num = ord(chapter_num.upper()) - ord('A') + 1
                         else:
                             # For Roman numerals
                             roman_to_int = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
                             chapter_num = sum(roman_to_int[c] for c in chapter_num)
-                    except ValueError:
+                    except (ValueError, KeyError):
                         continue
 
                     # Clean up the title
