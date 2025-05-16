@@ -265,10 +265,7 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
 
     # Common chapter patterns
     chapter_patterns = [
-        r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*)',  # Chapter 1: Title
-        r'(?i)(\d+)[\.\:\-\s]+(.*)',  # 1. Title
-        r'(?i)([IVX]+)[\.\:\-\s]+(.*)',  # I. Title or IV. Title
-        r'(?i)([A-Z])[\.\:\-\s]+(.*)'  # A. Title
+        r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
     ]
 
     for i, sentence in enumerate(sentences):
@@ -298,46 +295,18 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
                         continue
 
                     # Clean up the title
+                    # Remove any content after the first sentence or line break
                     if '.' in chapter_title:
                         chapter_title = chapter_title.split('.')[0].strip()
+                    if '\n' in chapter_title:
+                        chapter_title = chapter_title.split('\n')[0].strip()
+                    
+                    # Remove any technical terms or long descriptions
+                    if len(chapter_title.split()) > 10:  # If title is too long, it's probably content
+                        continue
                     
                     # Create chapter name
                     chapter_name = f"{chapter_type.capitalize()} {chapter_num}"
-                    if chapter_title:
-                        chapter_name += f": {chapter_title}"
-
-                    chapters.append(Chapter(
-                        number=chapter_num,
-                        name=chapter_name,
-                        confidence=0.9,
-                        page_number=page_number,
-                        line_number=i
-                    ))
-                    break  # Stop checking other patterns once we find a match
-                elif len(match.groups()) == 2:  # For other patterns
-                    chapter_num = match.group(1)
-                    chapter_title = match.group(2).strip()
-                    
-                    # Convert chapter number to integer if possible
-                    try:
-                        if chapter_num.isdigit():
-                            chapter_num = int(chapter_num)
-                        elif chapter_num.isalpha() and len(chapter_num) == 1:
-                            # For single letters (A-Z), convert to number (1-26)
-                            chapter_num = ord(chapter_num.upper()) - ord('A') + 1
-                        else:
-                            # For Roman numerals
-                            roman_to_int = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
-                            chapter_num = sum(roman_to_int[c] for c in chapter_num)
-                    except (ValueError, KeyError):
-                        continue
-
-                    # Clean up the title
-                    if '.' in chapter_title:
-                        chapter_title = chapter_title.split('.')[0].strip()
-                    
-                    # Create chapter name
-                    chapter_name = f"Chapter {chapter_num}"
                     if chapter_title:
                         chapter_name += f": {chapter_title}"
 
