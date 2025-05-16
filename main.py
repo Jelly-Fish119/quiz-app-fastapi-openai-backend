@@ -434,7 +434,7 @@ def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_
         prompt = f"""Analyze the following text and:
 1. Then generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
 2. First identify the 2 ~ 3 most important topics for the every quiz question
-
+3. Get Chapter title for the every quiz question, Extract Chapter title from page text.
 Text:
 {page_text}
 
@@ -457,13 +457,14 @@ D) [Option 4]
 Correct: [A/B/C/D]
 Explanation: [Brief explanation]
 Page: [Page number]
-
+Chapter: [Chapter title]
 For True/False Questions:
 TF: [Question text] (Line: [line number])
 Topics: [List of relevant topics from above]
 Correct: [True/False]
 Explanation: [Brief explanation]
 Page: [Page number]
+Chapter: [Chapter title]
 
 For Fill in the Blank Questions:
 FIB: [Question text with _____ for blank] (Line: [line number])
@@ -471,6 +472,7 @@ Topics: [List of relevant topics from above]
 Answer: [Correct answer]
 Explanation: [Brief explanation]
 Page: [Page number]
+Chapter: [Chapter title]
 
 For Short Answer Questions:
 SA: [Question text] (Line: [line number])
@@ -478,6 +480,7 @@ Topics: [List of relevant topics from above]
 Answer: [Expected answer]
 Explanation: [Brief explanation]
 Page: [Page number]
+Chapter: [Chapter title]
 
 Remember:
 - Focus on the key topics you identified
@@ -608,6 +611,9 @@ Remember:
                         collecting_options = False
                     elif line.startswith('Explanation:'):
                         current_question['explanation'] = line[12:].strip()
+                        collecting_options = False
+                    elif line.startswith('Chapter:'):
+                        current_question['chapter'] = line[7:].strip()
                         collecting_options = False
                     elif line.startswith('Page:'):
                         # Extract page number from the response
