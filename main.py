@@ -397,8 +397,6 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
 def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     try:
-        page_number = int(page_text.split('\n')[0].split(':')[0].split()[1])
-
         # Create a prompt that asks for both topics and questions
         prompt = f"""Analyze the following text and:
 1. Then generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
@@ -426,6 +424,7 @@ D) [Option 4]
 Correct: [A/B/C/D]
 Explanation: [Brief explanation]
 Page: [Page number]
+
 For True/False Questions:
 TF: [Question text] (Line: [line number])
 Topics: [List of relevant topics from above]
@@ -458,7 +457,7 @@ Remember:
 - For MCQs, always provide exactly 4 options (A, B, C, D)
 - Questions should test understanding of the key topics
 - Ensure questions are specific to the content on this page
-- Add page number to the question """
+- Add page number to the question"""
 
         # Call Gemini API
         response = generate_with_gemini(prompt)
@@ -480,13 +479,12 @@ Remember:
             if parsing_topics:
                 if line.startswith('Topics:'):
                     continue
-                elif '(' in line and ')' in line and 'confidence:' in line.lower():
-                    topic_name = line[:line.find('(')].strip()
-                    confidence = float(line[line.find('(')+1:line.find(')')].split(':')[1].strip())
+                elif line.startswith('Topic'):
+                    topic_name = line.split('Topic')[1].strip()
                     page_topics.append(Topic(
                         name=topic_name,
-                        confidence=confidence,
-                        page_number=page_number,
+                        confidence=1.0,  # Since we're not using confidence scores anymore
+                        page_number=0,  # Will be updated when we get the page number
                         line_number=0
                     ))
                 elif line.startswith('MCQ:') or line.startswith('TF:') or line.startswith('FIB:') or line.startswith('SA:'):
@@ -505,7 +503,7 @@ Remember:
                         'options': [],
                         'correct_answer': '',
                         'explanation': '',
-                        'page_number': page_number,
+                        'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
                         'topic': ''
@@ -521,7 +519,7 @@ Remember:
                         'options': ['True', 'False'],
                         'correct_answer': '',
                         'explanation': '',
-                        'page_number': page_number,
+                        'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
                         'topic': ''
@@ -537,7 +535,7 @@ Remember:
                         'options': [],
                         'correct_answer': '',
                         'explanation': '',
-                        'page_number': page_number,
+                        'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
                         'topic': ''
@@ -553,7 +551,7 @@ Remember:
                         'options': [],
                         'correct_answer': '',
                         'explanation': '',
-                        'page_number': page_number,
+                        'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
                         'topic': ''
@@ -578,6 +576,13 @@ Remember:
                     elif line.startswith('Explanation:'):
                         current_question['explanation'] = line[12:].strip()
                         collecting_options = False
+                    elif line.startswith('Page:'):
+                        # Extract page number from the response
+                        try:
+                            page_num = int(line[5:].strip())
+                            current_question['page_number'] = page_num
+                        except ValueError:
+                            print(f"Warning: Could not parse page number from: {line}")
                     elif '(Line:' in line:
                         # Extract line number from the question text
                         line_num_str = line[line.find('(Line:') + 6:line.find(')')].strip()
@@ -589,12 +594,10 @@ Remember:
         if current_question:
             questions.append(current_question)
         
-        # Add chapter and page number information to each question
+        # Add chapter information to each question
         if chapters:
             for question in questions:
                 question['chapter'] = find_best_matching_chapter(question['question'], chapters)
-                if all_pages_text:
-                    question['page_number'] = find_best_matching_page(question['question'], all_pages_text)
                 print("question: ", question)
             
         return questions
