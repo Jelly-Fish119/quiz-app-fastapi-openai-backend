@@ -394,7 +394,7 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
     best_page = max(page_scores, key=lambda x: x[1])
     return best_page[0] if best_page[1] > 0 else 1
 
-def generate_quiz_questions(page_text: str, topics: List[Topic] = None, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
+def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     try:
         page_number = int(page_text.split('\n')[0].split(':')[0].split()[1])
@@ -402,8 +402,8 @@ def generate_quiz_questions(page_text: str, topics: List[Topic] = None, chapters
 
         # Create a prompt that asks for both topics and questions
         prompt = f"""Analyze the following text and:
-1. First identify the 5 most important topics or concepts with their confidence scores
-2. Then generate quiz questions focusing on these topics and the page content
+1. Then generate quiz questions as much as possible regarding the page content and add page number to the question
+2. First identify the 2 ~ 3 most important topics for the every quiz question
 
 Text:
 {page_content}
