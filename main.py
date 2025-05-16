@@ -229,30 +229,35 @@ def clean_text(text: str) -> str:
 
 def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     """Extract chapter information from text"""
-    # Clean the text first
     text = clean_text(text)
-    
-    # Look for chapter patterns
     sentences = sent_tokenize(text)
-    print("-----------------sentences: ", sentences)
     chapters = []
-    
+
     for i, sentence in enumerate(sentences):
         sentence_lower = sentence.lower()
-        if any(keyword in sentence_lower for keyword in ['chapter', 'section', 'part']):
-            # Try to extract chapter number
-            import re
-            number_match = re.search(r'(?:chapter|section|part)\s*(\d+)', sentence_lower)
-            if number_match:
-                chapter_number = int(number_match.group(1))
-                chapters.append(Chapter(
-                    number=chapter_number,
-                    name=sentence.strip(),
-                    confidence=0.9,  # High confidence for explicit chapter markers
-                    page_number=page_number,
-                    line_number=i
-                ))
-    
+
+        # Match chapter/section/part with optional title
+        match = re.match(r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*)', sentence.strip())
+        if match:
+            chapter_number = int(match.group(2))
+            chapter_title = match.group(3).strip()
+
+            # Optional: truncate at the first full stop to avoid long descriptions
+            if '.' in chapter_title:
+                chapter_title = chapter_title.split('.')[0].strip()
+
+            full_title = f"{match.group(1).capitalize()} {chapter_number}"
+            if chapter_title:
+                full_title += f": {chapter_title}"
+
+            chapters.append(Chapter(
+                number=chapter_number,
+                name=full_title,
+                confidence=0.9,
+                page_number=page_number,
+                line_number=i
+            ))
+
     return chapters
 
 def parse_line_number(line_number: str) -> int:
