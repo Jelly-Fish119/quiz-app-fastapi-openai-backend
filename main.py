@@ -257,143 +257,156 @@ def clean_text(text: str) -> str:
     
     return cleaned_text
 
-def extract_chapters(text: str, page_number: int) -> List[Chapter]:
-    """Extract chapter information from text"""
-    text = clean_text(text)
-    sentences = sent_tokenize(text)
+def extract_chapters(text: str, page_number: int, page=None) -> List[Chapter]:
+    """Extract chapter information from text using font size"""
+    if not page:
+        return []
+
     chapters = []
+    try:
+        # Get all text elements with their font sizes
+        text_elements = []
+        for element in page.extract_text().split('\n'):
+            if element.strip():
+                # Get font size for this element
+                font_size = 0
+                for obj in page.get_contents():
+                    if isinstance(obj, dict) and '/Font' in obj:
+                        font = obj['/Font']
+                        if isinstance(font, dict):
+                            for key, value in font.items():
+                                if isinstance(value, dict) and '/FontSize' in value:
+                                    if value.get('/Text', '').strip() == element.strip():
+                                        font_size = value['/FontSize']
+                                        break
+                
+                text_elements.append({
+                    'text': element.strip(),
+                    'font_size': font_size
+                })
 
-    # Common chapter patterns
-    chapter_patterns = [
-        r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
-    ]
+        # Find the largest font size
+        if text_elements:
+            max_font_size = max(elem['font_size'] for elem in text_elements if elem['font_size'] > 0)
+            
+            # Get all text elements with the largest font size
+            largest_texts = [elem['text'] for elem in text_elements if elem['font_size'] == max_font_size]
+            
+            # Try to match chapter patterns in the largest text elements
+            for text in largest_texts:
+                # Common chapter patterns
+                chapter_patterns = [
+                    r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
+                ]
 
-    for i, sentence in enumerate(sentences):
-        sentence = sentence.strip()
-        if not sentence:
-            continue
-
-        # Try each pattern
-        for pattern in chapter_patterns:
-            match = re.match(pattern, sentence)
-            if match:
-                # Extract chapter number and title
-                if len(match.groups()) == 3:  # For chapter/section/part pattern
-                    chapter_type = match.group(1).lower()
-                    chapter_num = match.group(2)
-                    chapter_title = match.group(3).strip()
-                    
-                    # Convert chapter number to integer if possible
-                    try:
-                        if chapter_type in ['chapter', 'section', 'part']:
-                            chapter_num = int(chapter_num)
-                        else:
-                            # For Roman numerals
-                            roman_to_int = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
-                            chapter_num = sum(roman_to_int[c] for c in chapter_num)
-                    except ValueError:
-                        continue
-
-                    # Clean up the title
-                    # Remove any content after the first sentence or line break
-                    if '.' in chapter_title:
-                        chapter_title = chapter_title.split('.')[0].strip()
-                    if '\n' in chapter_title:
-                        chapter_title = chapter_title.split('\n')[0].strip()
-                    
-                    # Remove any technical terms or long descriptions
-                    if len(chapter_title.split()) > 10:  # If title is too long, it's probably content
-                        continue
-                    
-                    # Create chapter name
-                    chapter_name = f"{chapter_type.capitalize()} {chapter_num}"
-                    if chapter_title:
-                        chapter_name += f": {chapter_title}"
-
-                    chapters.append(Chapter(
-                        number=chapter_num,
-                        name=chapter_name,
-                        confidence=0.9,
-                        page_number=page_number,
-                        line_number=i
-                    ))
-                    break  # Stop checking other patterns once we find a match
-
-    return chapters
-
-def extract_text_with_font_info(pdf_path: str) -> List[dict]:
-    """Extract text with font information from PDF"""
-    import PyPDF2
-    from PyPDF2 import PdfReader
-    from collections import defaultdict
-
-    reader = PdfReader(pdf_path)
-    font_sizes = defaultdict(list)
-    text_by_font = defaultdict(list)
-    
-    for page_num in range(len(reader.pages)):
-        page = reader.pages[page_num]
-        content = page.get_contents()
-        
-        if content:
-            # Extract text and font information
-            for obj in content:
-                if isinstance(obj, dict) and '/Font' in obj:
-                    font = obj['/Font']
-                    if isinstance(font, dict):
-                        for key, value in font.items():
-                            if isinstance(value, dict) and '/FontSize' in value:
-                                font_size = value['/FontSize']
-                                text = value.get('/Text', '')
-                                if text:
-                                    font_sizes[font_size].append(text)
-                                    text_by_font[font_size].append({
-                                        'text': text,
-                                        'page': page_num + 1
-                                    })
-    
-    # Find the most common font size (likely to be the main text)
-    if font_sizes:
-        main_font_size = max(font_sizes.items(), key=lambda x: len(x[1]))[0]
-        
-        # Find larger font sizes (likely to be chapter titles)
-        chapter_font_sizes = [size for size in font_sizes.keys() if size > main_font_size]
-        
-        # Extract potential chapter titles
-        chapters = []
-        for size in chapter_font_sizes:
-            for item in text_by_font[size]:
-                text = item['text'].strip()
-                if text:
-                    # Try to match chapter pattern
-                    match = re.match(r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)', text)
+                for pattern in chapter_patterns:
+                    match = re.match(pattern, text)
                     if match:
+                        # Extract chapter number and title
+                        if len(match.groups()) == 3:  # For chapter/section/part pattern
+                            chapter_type = match.group(1).lower()
+                            chapter_num = match.group(2)
+                            chapter_title = match.group(3).strip()
+                            
+                            # Convert chapter number to integer if possible
+                            try:
+                                if chapter_type in ['chapter', 'section', 'part']:
+                                    chapter_num = int(chapter_num)
+                                else:
+                                    # For Roman numerals
+                                    roman_to_int = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+                                    chapter_num = sum(roman_to_int[c] for c in chapter_num)
+                            except ValueError:
+                                continue
+
+                            # Clean up the title
+                            # Remove any content after the first sentence or line break
+                            if '.' in chapter_title:
+                                chapter_title = chapter_title.split('.')[0].strip()
+                            if '\n' in chapter_title:
+                                chapter_title = chapter_title.split('\n')[0].strip()
+                            
+                            # Remove any technical terms or long descriptions
+                            if len(chapter_title.split()) > 10:  # If title is too long, it's probably content
+                                continue
+                            
+                            # Create chapter name
+                            chapter_name = f"{chapter_type.capitalize()} {chapter_num}"
+                            if chapter_title:
+                                chapter_name += f": {chapter_title}"
+
+                            chapters.append(Chapter(
+                                number=chapter_num,
+                                name=chapter_name,
+                                confidence=0.9,
+                                page_number=page_number,
+                                line_number=0
+                            ))
+                            break  # Stop checking other patterns once we find a match
+
+    except Exception as e:
+        print(f"Error extracting chapters with font size: {str(e)}")
+        # Fall back to text-based extraction if font size extraction fails
+        text = clean_text(text)
+        sentences = sent_tokenize(text)
+        
+        # Common chapter patterns
+        chapter_patterns = [
+            r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
+        ]
+
+        for i, sentence in enumerate(sentences):
+            sentence = sentence.strip()
+            if not sentence:
+                continue
+
+            # Try each pattern
+            for pattern in chapter_patterns:
+                match = re.match(pattern, sentence)
+                if match:
+                    # Extract chapter number and title
+                    if len(match.groups()) == 3:  # For chapter/section/part pattern
                         chapter_type = match.group(1).lower()
-                        chapter_num = int(match.group(2))
+                        chapter_num = match.group(2)
                         chapter_title = match.group(3).strip()
                         
+                        # Convert chapter number to integer if possible
+                        try:
+                            if chapter_type in ['chapter', 'section', 'part']:
+                                chapter_num = int(chapter_num)
+                            else:
+                                # For Roman numerals
+                                roman_to_int = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
+                                chapter_num = sum(roman_to_int[c] for c in chapter_num)
+                        except ValueError:
+                            continue
+
                         # Clean up the title
+                        # Remove any content after the first sentence or line break
                         if '.' in chapter_title:
                             chapter_title = chapter_title.split('.')[0].strip()
                         if '\n' in chapter_title:
                             chapter_title = chapter_title.split('\n')[0].strip()
                         
+                        # Remove any technical terms or long descriptions
+                        if len(chapter_title.split()) > 10:  # If title is too long, it's probably content
+                            continue
+                        
                         # Create chapter name
                         chapter_name = f"{chapter_type.capitalize()} {chapter_num}"
                         if chapter_title:
                             chapter_name += f": {chapter_title}"
-                        
+
                         chapters.append(Chapter(
                             number=chapter_num,
                             name=chapter_name,
                             confidence=0.9,
-                            page_number=item['page'],
-                            line_number=0
+                            page_number=page_number,
+                            line_number=i
                         ))
-        
-        return chapters
-    
-    return []
+                        break  # Stop checking other patterns once we find a match
+
+    return chapters
 
 def parse_line_number(line_number: str) -> int:
     """Parse line number from string, handling various formats."""
@@ -789,37 +802,32 @@ async def finalize_upload(
             pdf_reader = PyPDF2.PdfReader(file)
             all_text = []
             
-            # First try to extract chapters using font information
-            chapters = extract_text_with_font_info(final_path)
-            
-            # If no chapters found with font info, fall back to text-based extraction
-            if not chapters:
-                # Extract text from each page
-                for page_num in range(len(pdf_reader.pages)):
-                    page = pdf_reader.pages[page_num]
-                    text = page.extract_text()
-                    # Clean the text before adding it
-                    cleaned_text = clean_text(text)
-                    all_text.append(f"Page {page_num + 1}:\n{cleaned_text}")
+            # Extract text from each page
+            for page_num in range(len(pdf_reader.pages)):
+                page = pdf_reader.pages[page_num]
+                text = page.extract_text()
+                # Clean the text before adding it
+                cleaned_text = clean_text(text)
+                all_text.append(f"Page {page_num + 1}:\n{cleaned_text}")
 
-                # Combine all text
-                combined_text = "\n\n".join(all_text)
+            # Combine all text
+            combined_text = "\n\n".join(all_text)
 
-                # Extract topics and chapters
-                topics = []
-                chapters = []
-                for page_num, text in enumerate(all_text):
-                    # Extract topics
-                    page_topics = extract_topics(text, page_num + 1, 0)
-                    topics.extend(page_topics)
-                    
-                    # Extract chapters
-                    print("page_num: ", page_num + 1)
-                    print("--------------------------------")
-                    print("text: ", text)
-                    print("--------------------------------")
-                    page_chapters = extract_chapters(text, page_num + 1)
-                    chapters.extend(page_chapters)
+            # Extract topics and chapters
+            topics = []
+            chapters = []
+            for page_num, text in enumerate(all_text):
+                # Extract topics
+                page_topics = extract_topics(text, page_num + 1, 0)
+                topics.extend(page_topics)
+                
+                # Extract chapters using font size
+                print("page_num: ", page_num + 1)
+                print("--------------------------------")
+                print("text: ", text)
+                print("--------------------------------")
+                page_chapters = extract_chapters(text, page_num + 1, pdf_reader.pages[page_num])
+                chapters.extend(page_chapters)
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
