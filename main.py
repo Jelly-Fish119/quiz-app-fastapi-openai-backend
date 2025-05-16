@@ -214,10 +214,9 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     # Look for chapter patterns
     sentences = sent_tokenize(text)
     chapters = []
-    
+    print("-----------------sentences: ", sentences)
     for i, sentence in enumerate(sentences):
         sentence_lower = sentence.lower()
-        print("-----------------sentence: ", sentence)
         print("\n")
         if any(keyword in sentence_lower for keyword in ['chapter', 'section', 'part']):
             # Try to extract chapter number
