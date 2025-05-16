@@ -17,6 +17,10 @@ import requests
 from dotenv import load_dotenv
 import google.generativeai as genai
 import re
+from gensim import corpora, models
+from gensim.utils import simple_preprocess
+from gensim.parsing.preprocessing import STOPWORDS
+import numpy as np
 
 # Download required NLTK data
 nltk.download('punkt')
@@ -188,21 +192,44 @@ def save_to_csv(data: dict, filename: str):
         writer.writerows(rows)
 
 def extract_topics(text: str, page_number: int, line_number: int) -> List[Topic]:
-    """Extract main topics from text using NLTK"""
-    # Tokenize and clean text
-    tokens = word_tokenize(text.lower())
-    stop_words = set(stopwords.words('english'))
-    filtered_tokens = [word for word in tokens if word.isalnum() and word not in stop_words]
+    """Extract main topics from text using Gensim LDA"""
+    # Preprocess text
+    def preprocess(text):
+        # Tokenize and clean text
+        tokens = simple_preprocess(text, deacc=True)
+        # Remove stopwords and short words
+        return [token for token in tokens if token not in STOPWORDS and len(token) > 3]
     
-    # Get frequency distribution
-    fdist = FreqDist(filtered_tokens)
+    # Prepare documents
+    doc = preprocess(text)
     
-    # Extract top topics
+    # Create dictionary and corpus
+    dictionary = corpora.Dictionary([doc])
+    corpus = [dictionary.doc2bow(doc)]
+    
+    # Train LDA model
+    num_topics = 5  # Number of topics to extract
+    lda_model = models.LdaModel(
+        corpus=corpus,
+        id2word=dictionary,
+        num_topics=num_topics,
+        random_state=42,
+        passes=10,
+        alpha='auto'
+    )
+    
+    # Extract topics with their importance scores
     topics = []
-    for word, freq in fdist.most_common(5):
-        confidence = freq / len(filtered_tokens)
+    for topic_id, topic_terms in lda_model.print_topics():
+        # Get the top terms for this topic
+        terms = topic_terms.split('+')
+        # Extract the most important term (first term)
+        most_important_term = terms[0].split('*')[1].strip().strip('"')
+        # Calculate confidence based on term weight
+        confidence = float(terms[0].split('*')[0].strip())
+        
         topics.append(Topic(
-            name=word,
+            name=most_important_term,
             confidence=confidence,
             page_number=page_number,
             line_number=line_number
