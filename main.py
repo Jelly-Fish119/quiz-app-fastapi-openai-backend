@@ -432,9 +432,9 @@ def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_
     try:
         # Create a prompt that asks for both topics and questions
         prompt = f"""Analyze the following text and:
-1. Then generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
-2. First identify the 2 ~ 3 most important topics for the every quiz question
-3. Get Chapter number and title for the every quiz question, Extract Chapter number and title from page text. Here are examples: chapter 1: Machine Learning, chapter 2: Deep Learning, chapter 3: Neural Networks etc.
+1. First generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
+2. Then identify the 2 ~ 3 most important topics for the every quiz question
+3. After that get Chapter number and Chapter title for the every quiz question, Extract Chapter number and Chapter title from page text. Here are examples: Chapter 1: Machine Learning, Chapter 2: Deep Learning, Chapter 3: Neural Networks etc.
 Text:
 {page_text}
 
@@ -457,14 +457,15 @@ D) [Option 4]
 Correct: [A/B/C/D]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter title]
+Chapter: [Chapter number: Chapter title]
+
 For True/False Questions:
 TF: [Question text] (Line: [line number])
 Topics: [List of relevant topics from above]
 Correct: [True/False]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter number and title]
+Chapter: [Chapter number: Chapter title]
 
 For Fill in the Blank Questions:
 FIB: [Question text with _____ for blank] (Line: [line number])
@@ -472,7 +473,7 @@ Topics: [List of relevant topics from above]
 Answer: [Correct answer]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter number: title]
+Chapter: [Chapter number: Chapter title]
 
 For Short Answer Questions:
 SA: [Question text] (Line: [line number])
@@ -480,7 +481,7 @@ Topics: [List of relevant topics from above]
 Answer: [Expected answer]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter number and title]
+Chapter: [Chapter number: Chapter title]
 
 Remember:
 - Focus on the key topics you identified
