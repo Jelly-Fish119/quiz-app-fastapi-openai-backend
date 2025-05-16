@@ -270,89 +270,99 @@ def extract_chapters(text: str, page_number: int, page=None) -> List[Chapter]:
             if element.strip():
                 # Get font size for this element
                 font_size = 0
-                for obj in page.get_contents():
-                    if isinstance(obj, dict) and '/Font' in obj:
-                        font = obj['/Font']
-                        if isinstance(font, dict):
-                            for key, value in font.items():
-                                if isinstance(value, dict) and '/FontSize' in value:
-                                    if value.get('/Text', '').strip() == element.strip():
-                                        font_size = value['/FontSize']
-                                        break
+                try:
+                    for obj in page.get_contents():
+                        if isinstance(obj, dict) and '/Font' in obj:
+                            font = obj['/Font']
+                            if isinstance(font, dict):
+                                for key, value in font.items():
+                                    if isinstance(value, dict) and '/FontSize' in value:
+                                        if value.get('/Text', '').strip() == element.strip():
+                                            font_size = value['/FontSize']
+                                            break
+                except Exception as e:
+                    print(f"Warning: Error getting font size for element: {str(e)}")
+                    continue
                 
-                text_elements.append({
-                    'text': element.strip(),
-                    'font_size': font_size
-                })
+                if font_size > 0:  # Only add elements with valid font sizes
+                    text_elements.append({
+                        'text': element.strip(),
+                        'font_size': font_size
+                    })
 
         # Find the largest font size
         if text_elements:
-            max_font_size = max(elem['font_size'] for elem in text_elements if elem['font_size'] > 0)
-            
-            # Get all text elements with the largest font size
-            largest_texts = [elem['text'] for elem in text_elements if elem['font_size'] == max_font_size]
-            
-            # Try to match chapter patterns in the largest text elements
-            for text in largest_texts:
-                # Common chapter patterns
-                chapter_patterns = [
-                    r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
+            try:
+                max_font_size = max(elem['font_size'] for elem in text_elements if elem['font_size'] > 0)
+                
+                # Get all text elements with the largest font size that contain "chapter"
+                largest_texts = [
+                    elem['text'] for elem in text_elements 
+                    if elem['font_size'] == max_font_size and 'chapter' in elem['text'].lower()
                 ]
+                
+                # Try to match chapter patterns in the largest text elements
+                for text in largest_texts:
+                    # Common chapter patterns
+                    chapter_patterns = [
+                        r'(?i)chapter\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
+                    ]
 
-                for pattern in chapter_patterns:
-                    match = re.match(pattern, text)
-                    if match:
-                        # Extract chapter number and title
-                        if len(match.groups()) == 3:  # For chapter/section/part pattern
-                            chapter_type = match.group(1).lower()
-                            chapter_num = match.group(2)
-                            chapter_title = match.group(3).strip()
-                            
-                            # Convert chapter number to integer if possible
-                            try:
-                                if chapter_type in ['chapter', 'section', 'part']:
+                    for pattern in chapter_patterns:
+                        match = re.match(pattern, text)
+                        if match:
+                            # Extract chapter number and title
+                            if len(match.groups()) == 2:  # For chapter pattern
+                                chapter_num = match.group(1)
+                                chapter_title = match.group(2).strip()
+                                
+                                # Convert chapter number to integer if possible
+                                try:
                                     chapter_num = int(chapter_num)
-                                else:
-                                    # For Roman numerals
-                                    roman_to_int = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
-                                    chapter_num = sum(roman_to_int[c] for c in chapter_num)
-                            except ValueError:
-                                continue
+                                except ValueError:
+                                    continue
 
-                            # Clean up the title
-                            # Remove any content after the first sentence or line break
-                            if '.' in chapter_title:
-                                chapter_title = chapter_title.split('.')[0].strip()
-                            if '\n' in chapter_title:
-                                chapter_title = chapter_title.split('\n')[0].strip()
-                            
-                            # Remove any technical terms or long descriptions
-                            if len(chapter_title.split()) > 10:  # If title is too long, it's probably content
-                                continue
-                            
-                            # Create chapter name
-                            chapter_name = f"{chapter_type.capitalize()} {chapter_num}"
-                            if chapter_title:
-                                chapter_name += f": {chapter_title}"
+                                # Clean up the title
+                                # Remove any content after the first sentence or line break
+                                if '.' in chapter_title:
+                                    chapter_title = chapter_title.split('.')[0].strip()
+                                if '\n' in chapter_title:
+                                    chapter_title = chapter_title.split('\n')[0].strip()
+                                
+                                # Remove any technical terms or long descriptions
+                                if len(chapter_title.split()) > 10:  # If title is too long, it's probably content
+                                    continue
+                                
+                                # Create chapter name
+                                chapter_name = f"Chapter {chapter_num}"
+                                if chapter_title:
+                                    chapter_name += f": {chapter_title}"
 
-                            chapters.append(Chapter(
-                                number=chapter_num,
-                                name=chapter_name,
-                                confidence=0.9,
-                                page_number=page_number,
-                                line_number=0
-                            ))
-                            break  # Stop checking other patterns once we find a match
+                                chapters.append(Chapter(
+                                    number=chapter_num,
+                                    name=chapter_name,
+                                    confidence=0.9,
+                                    page_number=page_number,
+                                    line_number=0
+                                ))
+                                break  # Stop checking other patterns once we find a match
+            except ValueError as e:
+                print(f"Warning: No valid font sizes found: {str(e)}")
+                # Fall through to text-based extraction
 
     except Exception as e:
         print(f"Error extracting chapters with font size: {str(e)}")
         # Fall back to text-based extraction if font size extraction fails
+
+    # If no chapters found with font size, try text-based extraction
+    if not chapters:
         text = clean_text(text)
         sentences = sent_tokenize(text)
         
         # Common chapter patterns
         chapter_patterns = [
-            r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
+            # r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
+            r'(?i)chapter\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)',  # Chapter 1: Title
         ]
 
         for i, sentence in enumerate(sentences):
@@ -365,19 +375,13 @@ def extract_chapters(text: str, page_number: int, page=None) -> List[Chapter]:
                 match = re.match(pattern, sentence)
                 if match:
                     # Extract chapter number and title
-                    if len(match.groups()) == 3:  # For chapter/section/part pattern
-                        chapter_type = match.group(1).lower()
-                        chapter_num = match.group(2)
-                        chapter_title = match.group(3).strip()
+                    if len(match.groups()) == 2:  # For chapter pattern
+                        chapter_num = match.group(1)
+                        chapter_title = match.group(2).strip()
                         
                         # Convert chapter number to integer if possible
                         try:
-                            if chapter_type in ['chapter', 'section', 'part']:
-                                chapter_num = int(chapter_num)
-                            else:
-                                # For Roman numerals
-                                roman_to_int = {'I': 1, 'V': 5, 'X': 10, 'L': 50, 'C': 100, 'D': 500, 'M': 1000}
-                                chapter_num = sum(roman_to_int[c] for c in chapter_num)
+                            chapter_num = int(chapter_num)
                         except ValueError:
                             continue
 
@@ -393,7 +397,7 @@ def extract_chapters(text: str, page_number: int, page=None) -> List[Chapter]:
                             continue
                         
                         # Create chapter name
-                        chapter_name = f"{chapter_type.capitalize()} {chapter_num}"
+                        chapter_name = f"Chapter {chapter_num}"
                         if chapter_title:
                             chapter_name += f": {chapter_title}"
 
@@ -849,59 +853,59 @@ async def finalize_upload(
         print(f"Error processing PDF: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
 
-@app.post("/pdf/analyze-pages")
-async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
-    """Analyze pages and generate quiz questions"""
-    all_topics = []
-    all_chapters = []
-    all_questions = []
-    all_pages_text = [page.text for page in pages]  # Store all page texts for matching
+# @app.post("/pdf/analyze-pages")
+# async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
+#     """Analyze pages and generate quiz questions"""
+#     all_topics = []
+#     all_chapters = []
+#     all_questions = []
+#     all_pages_text = [page.text for page in pages]  # Store all page texts for matching
     
-    for page in pages:
-        # Extract topics
-        topics = extract_topics(page.text, page.page_number, page.line_numbers[0].start)
-        all_topics.extend(topics)
+#     for page in pages:
+#         # Extract topics
+#         topics = extract_topics(page.text, page.page_number, page.line_numbers[0].start)
+#         all_topics.extend(topics)
         
-        # Extract chapters
-        chapters = extract_chapters(page.text, page.page_number)
-        all_chapters.extend(chapters)
+#         # Extract chapters
+#         chapters = extract_chapters(page.text, page.page_number)
+#         all_chapters.extend(chapters)
         
-        # Generate quiz questions with topics, chapters, and all pages text
-        questions = generate_quiz_questions(page.text, all_chapters, all_pages_text)
-        all_questions.extend(questions)
+#         # Generate quiz questions with topics, chapters, and all pages text
+#         questions = generate_quiz_questions(page.text, all_chapters, all_pages_text)
+#         all_questions.extend(questions)
     
-    # Create response
-    response = AnalysisResponse(
-        topics=all_topics,
-        chapters=all_chapters,
-        questions=all_questions
-    )
+#     # Create response
+#     response = AnalysisResponse(
+#         topics=all_topics,
+#         chapters=all_chapters,
+#         questions=all_questions
+#     )
     
-    # Save to CSV
-    save_to_csv(response.dict(), f"analysis_{pages[0].page_number}")
+#     # Save to CSV
+#     save_to_csv(response.dict(), f"analysis_{pages[0].page_number}")
     
-    return response
+#     return response
 
-@app.get("/pdf/analysis/{file_id}")
-async def get_analysis(file_id: str) -> AnalysisResponse:
-    """Get analysis results for a file"""
-    csv_path = UPLOAD_DIR / f"analysis_{file_id}.csv"
-    if not csv_path.exists():
-        raise HTTPException(status_code=404, detail="Analysis not found")
+# @app.get("/pdf/analysis/{file_id}")
+# async def get_analysis(file_id: str) -> AnalysisResponse:
+#     """Get analysis results for a file"""
+#     csv_path = UPLOAD_DIR / f"analysis_{file_id}.csv"
+#     if not csv_path.exists():
+#         raise HTTPException(status_code=404, detail="Analysis not found")
     
-    # Read from CSV and convert to response format
-    df = pd.read_csv(csv_path)
+#     # Read from CSV and convert to response format
+#     df = pd.read_csv(csv_path)
     
-    topics = df[df['type'] == 'topic'].to_dict('records')
-    chapters = df[df['type'] == 'chapter'].to_dict('records')
-    questions = df[df['type'] == 'question'].to_dict('records')
+#     topics = df[df['type'] == 'topic'].to_dict('records')
+#     chapters = df[df['type'] == 'chapter'].to_dict('records')
+#     questions = df[df['type'] == 'question'].to_dict('records')
     
-    # Convert options back to list
-    for q in questions:
-        q['options'] = json.loads(q['options'])
+#     # Convert options back to list
+#     for q in questions:
+#         q['options'] = json.loads(q['options'])
     
-    return AnalysisResponse(
-        topics=topics,
-        chapters=chapters,
-        questions=questions
-    )
+#     return AnalysisResponse(
+#         topics=topics,
+#         chapters=chapters,
+#         questions=questions
+#     )
