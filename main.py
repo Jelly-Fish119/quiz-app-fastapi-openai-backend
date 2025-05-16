@@ -16,6 +16,7 @@ import json
 import requests
 from dotenv import load_dotenv
 import google.generativeai as genai
+import re
 
 # Download required NLTK data
 nltk.download('punkt')
