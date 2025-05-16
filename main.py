@@ -321,6 +321,80 @@ def extract_chapters(text: str, page_number: int) -> List[Chapter]:
 
     return chapters
 
+def extract_text_with_font_info(pdf_path: str) -> List[dict]:
+    """Extract text with font information from PDF"""
+    import PyPDF2
+    from PyPDF2 import PdfReader
+    from collections import defaultdict
+
+    reader = PdfReader(pdf_path)
+    font_sizes = defaultdict(list)
+    text_by_font = defaultdict(list)
+    
+    for page_num in range(len(reader.pages)):
+        page = reader.pages[page_num]
+        content = page.get_contents()
+        
+        if content:
+            # Extract text and font information
+            for obj in content:
+                if isinstance(obj, dict) and '/Font' in obj:
+                    font = obj['/Font']
+                    if isinstance(font, dict):
+                        for key, value in font.items():
+                            if isinstance(value, dict) and '/FontSize' in value:
+                                font_size = value['/FontSize']
+                                text = value.get('/Text', '')
+                                if text:
+                                    font_sizes[font_size].append(text)
+                                    text_by_font[font_size].append({
+                                        'text': text,
+                                        'page': page_num + 1
+                                    })
+    
+    # Find the most common font size (likely to be the main text)
+    if font_sizes:
+        main_font_size = max(font_sizes.items(), key=lambda x: len(x[1]))[0]
+        
+        # Find larger font sizes (likely to be chapter titles)
+        chapter_font_sizes = [size for size in font_sizes.keys() if size > main_font_size]
+        
+        # Extract potential chapter titles
+        chapters = []
+        for size in chapter_font_sizes:
+            for item in text_by_font[size]:
+                text = item['text'].strip()
+                if text:
+                    # Try to match chapter pattern
+                    match = re.match(r'(?i)(chapter|section|part)\s*(\d+)[\.\:\-\s]*(.*?)(?=\n|$)', text)
+                    if match:
+                        chapter_type = match.group(1).lower()
+                        chapter_num = int(match.group(2))
+                        chapter_title = match.group(3).strip()
+                        
+                        # Clean up the title
+                        if '.' in chapter_title:
+                            chapter_title = chapter_title.split('.')[0].strip()
+                        if '\n' in chapter_title:
+                            chapter_title = chapter_title.split('\n')[0].strip()
+                        
+                        # Create chapter name
+                        chapter_name = f"{chapter_type.capitalize()} {chapter_num}"
+                        if chapter_title:
+                            chapter_name += f": {chapter_title}"
+                        
+                        chapters.append(Chapter(
+                            number=chapter_num,
+                            name=chapter_name,
+                            confidence=0.9,
+                            page_number=item['page'],
+                            line_number=0
+                        ))
+        
+        return chapters
+    
+    return []
+
 def parse_line_number(line_number: str) -> int:
     """Parse line number from string, handling various formats."""
     try:
@@ -715,32 +789,37 @@ async def finalize_upload(
             pdf_reader = PyPDF2.PdfReader(file)
             all_text = []
             
-            # Extract text from each page
-            for page_num in range(len(pdf_reader.pages)):
-                page = pdf_reader.pages[page_num]
-                text = page.extract_text()
-                # Clean the text before adding it
-                cleaned_text = clean_text(text)
-                all_text.append(f"Page {page_num + 1}:\n{cleaned_text}")
+            # First try to extract chapters using font information
+            chapters = extract_text_with_font_info(final_path)
+            
+            # If no chapters found with font info, fall back to text-based extraction
+            if not chapters:
+                # Extract text from each page
+                for page_num in range(len(pdf_reader.pages)):
+                    page = pdf_reader.pages[page_num]
+                    text = page.extract_text()
+                    # Clean the text before adding it
+                    cleaned_text = clean_text(text)
+                    all_text.append(f"Page {page_num + 1}:\n{cleaned_text}")
 
-            # Combine all text
-            combined_text = "\n\n".join(all_text)
+                # Combine all text
+                combined_text = "\n\n".join(all_text)
 
-            # Extract topics and chapters
-            topics = []
-            chapters = []
-            for page_num, text in enumerate(all_text):
-                # Extract topics
-                page_topics = extract_topics(text, page_num + 1, 0)
-                topics.extend(page_topics)
-                
-                # Extract chapters
-                print("page_num: ", page_num + 1)
-                print("--------------------------------")
-                print("text: ", text)
-                print("--------------------------------")
-                page_chapters = extract_chapters(text, page_num + 1)
-                chapters.extend(page_chapters)
+                # Extract topics and chapters
+                topics = []
+                chapters = []
+                for page_num, text in enumerate(all_text):
+                    # Extract topics
+                    page_topics = extract_topics(text, page_num + 1, 0)
+                    topics.extend(page_topics)
+                    
+                    # Extract chapters
+                    print("page_num: ", page_num + 1)
+                    print("--------------------------------")
+                    print("text: ", text)
+                    print("--------------------------------")
+                    page_chapters = extract_chapters(text, page_num + 1)
+                    chapters.extend(page_chapters)
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
