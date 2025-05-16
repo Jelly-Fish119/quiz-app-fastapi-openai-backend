@@ -208,7 +208,7 @@ def extract_topics(text: str, page_number: int, line_number: int) -> List[Topic]
     corpus = [dictionary.doc2bow(doc)]
     
     # Train LDA model
-    num_topics = 5  # Number of topics to extract
+    num_topics = 10  # Number of topics to extract
     lda_model = models.LdaModel(
         corpus=corpus,
         id2word=dictionary,
@@ -221,20 +221,22 @@ def extract_topics(text: str, page_number: int, line_number: int) -> List[Topic]
     # Extract topics with their importance scores
     topics = []
     for topic_id, topic_terms in lda_model.print_topics():
-        # Get the top terms for this topic
+        # Get all terms for this topic
         terms = topic_terms.split('+')
-        # Extract the most important term (first term)
-        most_important_term = terms[0].split('*')[1].strip().strip('"')
-        # Calculate confidence based on term weight
-        confidence = float(terms[0].split('*')[0].strip())
-        
-        topics.append(Topic(
-            name=most_important_term,
-            confidence=confidence,
-            page_number=page_number,
-            line_number=line_number
-        ))
+        # Extract terms and their weights
+        for term in terms:
+            weight = float(term.split('*')[0].strip())
+            term_text = term.split('*')[1].strip().strip('"')
+            if weight > 0.1:  # Only include terms with significant weight
+                topics.append(Topic(
+                    name=term_text,
+                    confidence=weight,
+                    page_number=page_number,
+                    line_number=line_number
+                ))
     
+    # Sort topics by confidence
+    topics.sort(key=lambda x: x.confidence, reverse=True)
     return topics
 
 def clean_text(text: str) -> str:
@@ -317,15 +319,16 @@ def parse_question_options(options_str: str, question_type: str) -> List[str]:
         return []  # Short answer questions don't have options
     return []
 
-def find_best_matching_topic(question_text: str, topics: List[Topic]) -> str:
-    """Find the best matching topic for a question using simple text matching."""
+def find_best_matching_topics(question_text: str, topics: List[Topic], max_topics: int = 3) -> str:
+    """Find the best matching topics for a question using text similarity."""
     if not topics:
         return ""
     
     # Convert question to lowercase for better matching
     question_lower = question_text.lower()
+    question_words = set(question_lower.split())
     
-    # Score each topic based on word overlap
+    # Score each topic based on word overlap and confidence
     topic_scores = []
     for topic in topics:
         score = 0
@@ -333,11 +336,15 @@ def find_best_matching_topic(question_text: str, topics: List[Topic]) -> str:
         for word in topic_words:
             if word in question_lower:
                 score += 1
-        topic_scores.append((topic.name, score))
+        # Combine word overlap score with topic confidence
+        final_score = (score / len(topic_words)) * topic.confidence if topic_words else 0
+        topic_scores.append((topic.name, final_score))
     
-    # Return the topic with the highest score
-    best_topic = max(topic_scores, key=lambda x: x[1])
-    return best_topic[0] if best_topic[1] > 0 else ""
+    # Sort topics by score and get top matches
+    top_topics = sorted(topic_scores, key=lambda x: x[1], reverse=True)[:max_topics]
+    
+    # Join top topics with their confidence scores
+    return ", ".join([f"{topic} ({score:.2f})" for topic, score in top_topics if score > 0])
 
 def find_best_matching_chapter(question_text: str, chapters: List[Chapter]) -> str:
     """Find the best matching chapter for a question using simple text matching."""
@@ -536,13 +543,9 @@ Remember:
             questions.append(current_question)
         
         # Add topic, chapter, and page number information to each question
-        print("topics: ", topics)
-        print("chapters: ", chapters)
         if topics or chapters:
-            print("chapters: ", chapters)
-            print("topics: ", topics)
             for question in questions:
-                question['topic'] = find_best_matching_topic(question['question'], topics)
+                question['topic'] = find_best_matching_topics(question['question'], topics)
                 question['chapter'] = find_best_matching_chapter(question['question'], chapters)
                 if all_pages_text:
                     question['page_number'] = find_best_matching_page(question['question'], all_pages_text)
