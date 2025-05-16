@@ -433,8 +433,8 @@ def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_
         # Create a prompt that asks for both topics and questions
         prompt = f"""Analyze the following text and:
 1. Then generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
-2. First identify the 2 ~ 3 most important topics for the every quiz question
-3. Get Chapter title for the every quiz question, Extract Chapter title from page text.
+2. First identify the 2 ~ 3 most important topics on this page for the corresponding quiz question
+3. Get Chapter number and title for the every quiz question, Extract Chapter number and title from page text.
 Text:
 {page_text}
 
@@ -464,7 +464,7 @@ Topics: [List of relevant topics from above]
 Correct: [True/False]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter title]
+Chapter: [Chapter number and title]
 
 For Fill in the Blank Questions:
 FIB: [Question text with _____ for blank] (Line: [line number])
@@ -472,7 +472,7 @@ Topics: [List of relevant topics from above]
 Answer: [Correct answer]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter title]
+Chapter: [Chapter number and title]
 
 For Short Answer Questions:
 SA: [Question text] (Line: [line number])
@@ -480,7 +480,7 @@ Topics: [List of relevant topics from above]
 Answer: [Expected answer]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter title]
+Chapter: [Chapter number and title]
 
 Remember:
 - Focus on the key topics you identified
@@ -613,7 +613,14 @@ Remember:
                         current_question['explanation'] = line[12:].strip()
                         collecting_options = False
                     elif line.startswith('Chapter:'):
-                        current_question['chapter'] = line[7:].strip()
+                        chapter_str = line[7:].strip()
+                        chapter_parts = chapter_str.split(' ', 1)
+                        if len(chapter_parts) == 2:
+                            current_question['chapter_number'] = chapter_parts[0].strip()
+                            current_question['chapter_title'] = chapter_parts[1].strip()
+                        else:
+                            current_question['chapter_number'] = ''
+                            current_question['chapter_title'] = ''
                         collecting_options = False
                     elif line.startswith('Page:'):
                         # Extract page number from the response
