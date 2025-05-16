@@ -735,6 +735,10 @@ async def finalize_upload(
                 topics.extend(page_topics)
                 
                 # Extract chapters
+                print("page_num: ", page_num + 1)
+                print("--------------------------------")
+                print("text: ", text)
+                print("--------------------------------")
                 page_chapters = extract_chapters(text, page_num + 1)
                 chapters.extend(page_chapters)
 
