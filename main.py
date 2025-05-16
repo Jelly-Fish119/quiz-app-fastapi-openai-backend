@@ -409,11 +409,9 @@ Text:
 
 First, list the topics in this format:
 Topics:
-Topic 1 (confidence: X.XX)
-Topic 2 (confidence: X.XX)
-Topic 3 (confidence: X.XX)
-Topic 4 (confidence: X.XX)
-Topic 5 (confidence: X.XX)
+Topic 1
+Topic 2
+Topic 3
 
 Then, generate quiz questions following this exact format:
 
@@ -427,24 +425,27 @@ C) [Option 3]
 D) [Option 4]
 Correct: [A/B/C/D]
 Explanation: [Brief explanation]
-
+Page: [Page number]
 For True/False Questions:
 TF: [Question text] (Line: [line number])
 Topics: [List of relevant topics from above]
 Correct: [True/False]
 Explanation: [Brief explanation]
+Page: [Page number]
 
 For Fill in the Blank Questions:
 FIB: [Question text with _____ for blank] (Line: [line number])
 Topics: [List of relevant topics from above]
 Answer: [Correct answer]
 Explanation: [Brief explanation]
+Page: [Page number]
 
 For Short Answer Questions:
 SA: [Question text] (Line: [line number])
 Topics: [List of relevant topics from above]
 Answer: [Expected answer]
 Explanation: [Brief explanation]
+Page: [Page number]
 
 Remember:
 - Focus on the key topics you identified
