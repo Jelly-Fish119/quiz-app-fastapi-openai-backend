@@ -209,15 +209,36 @@ def extract_topics(text: str, page_number: int, line_number: int) -> List[Topic]
     
     return topics
 
+def clean_text(text: str) -> str:
+    """Clean text by removing artifacts and normalizing spaces."""
+    # Remove repeated words (common PDF artifact)
+    words = text.split()
+    cleaned_words = []
+    for i, word in enumerate(words):
+        if i > 0 and word == words[i-1]:
+            continue
+        cleaned_words.append(word)
+    
+    # Join words and normalize spaces
+    cleaned_text = ' '.join(cleaned_words)
+    
+    # Remove multiple spaces
+    cleaned_text = ' '.join(cleaned_text.split())
+    
+    return cleaned_text
+
 def extract_chapters(text: str, page_number: int) -> List[Chapter]:
     """Extract chapter information from text"""
+    # Clean the text first
+    text = clean_text(text)
+    
     # Look for chapter patterns
     sentences = sent_tokenize(text)
-    chapters = []
     print("-----------------sentences: ", sentences)
+    chapters = []
+    
     for i, sentence in enumerate(sentences):
         sentence_lower = sentence.lower()
-        print("\n")
         if any(keyword in sentence_lower for keyword in ['chapter', 'section', 'part']):
             # Try to extract chapter number
             import re
@@ -580,7 +601,9 @@ async def finalize_upload(
             for page_num in range(len(pdf_reader.pages)):
                 page = pdf_reader.pages[page_num]
                 text = page.extract_text()
-                all_text.append(f"Page {page_num + 1}:\n{text}")
+                # Clean the text before adding it
+                cleaned_text = clean_text(text)
+                all_text.append(f"Page {page_num + 1}:\n{cleaned_text}")
 
             # Combine all text
             combined_text = "\n\n".join(all_text)
@@ -588,7 +611,6 @@ async def finalize_upload(
             # Extract topics and chapters
             topics = []
             chapters = []
-            
             for page_num, text in enumerate(all_text):
                 # Extract topics
                 page_topics = extract_topics(text, page_num + 1, 0)
