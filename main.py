@@ -434,7 +434,7 @@ def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_
         prompt = f"""Analyze the following text and:
 1. Then generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question.
 2. First identify the 2 ~ 3 most important topics for the every quiz question
-3. Get Chapter number and title for the every quiz question, Extract Chapter number and title from page text.
+3. Get Chapter number and title for the every quiz question, Extract Chapter number and title from page text. Here are examples: chapter 1: Machine Learning, chapter 2: Deep Learning, chapter 3: Neural Networks etc.
 Text:
 {page_text}
 
@@ -472,7 +472,7 @@ Topics: [List of relevant topics from above]
 Answer: [Correct answer]
 Explanation: [Brief explanation]
 Page: [Page number]
-Chapter: [Chapter number and title]
+Chapter: [Chapter number: title]
 
 For Short Answer Questions:
 SA: [Question text] (Line: [line number])
@@ -616,8 +616,7 @@ Remember:
                         chapter_str = line[7:].strip()
                         chapter_parts = chapter_str.split(' ', 1)
                         if len(chapter_parts) == 2:
-                            current_question['chapter_number'] = chapter_parts[0].strip()
-                            current_question['chapter_title'] = chapter_parts[1].strip()
+                            current_question['chapter'] = line[7:].strip()
                         else:
                             current_question['chapter_number'] = ''
                             
