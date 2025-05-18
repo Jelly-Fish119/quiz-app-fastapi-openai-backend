@@ -444,6 +444,7 @@ def find_best_matching_line(question_keyword: str, page_text: str) -> int:
         # Calculate word overlap score
         if question_keyword in line_lower:
             line_number = i + 1
+            print("In 447, find_best_matching_line, line_number: ", line_number, "and line: ", i, "\n")
             break
     return line_number
     
