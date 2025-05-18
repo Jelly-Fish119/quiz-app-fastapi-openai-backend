@@ -263,16 +263,15 @@ def find_best_matching_line(question_keyword: str, page_object: LTPage) -> int:
     if not page_object:
         return 0
         
-    line_number = 0
+    temp_number = -1
     for element in page_object:
         if isinstance(element, LTTextContainer):
-            for i, text_line in enumerate(element):
+            for text_line in element:
                 if isinstance(text_line, LTTextLine):
                     line_text = text_line.get_text().strip()
+                    temp_number += 1
                     if question_keyword.lower() in line_text.lower():
-                        line_number = i + 1
-                        break
-    return line_number
+                        return temp_number
     
 
 def generate_quiz_questions(page_text: str, all_pages_text: List[str] = None, pdf_page_objects: List[LTPage] = None) -> List[QuizQuestion]:
