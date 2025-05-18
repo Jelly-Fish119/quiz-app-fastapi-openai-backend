@@ -681,6 +681,9 @@ Remember:
         
         # Add the last question if exists
         if current_question:
+            print("--------------------------------")
+            print("current_question: ", current_question)
+            print("--------------------------------\n")
             questions.append(current_question)
         
         # Add chapter information to each question
