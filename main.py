@@ -685,7 +685,8 @@ Remember:
             print("current_question: ", current_question)
             print("--------------------------------\n")
             questions.append(current_question)
-        
+        print("In 688, generate_quiz_questions, questions: ", questions, "\n")
+        print("--------------------------------\n")
         # Add chapter information to each question
         if chapters:
             for question in questions:
