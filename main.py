@@ -263,19 +263,15 @@ def find_best_matching_line(question_keyword: str, page_object: LTPage) -> int:
     if not page_object:
         return 0
         
-    temp_number = -1
+    line_number = 0
     for element in page_object:
         if isinstance(element, LTTextContainer):
             for text_line in element:
-                print("In 270, text_line: ", text_line, "\n")
                 if isinstance(text_line, LTTextLine):
+                    line_number += 1
                     line_text = text_line.get_text().strip()
-                    print("In 273, line_text: ", line_text, "\n")
-                    temp_number += 1
                     if question_keyword.lower() in line_text.lower():
-                        print("In 274, find_best_matching_line, temp_number: ", temp_number, "and line_text: ", line_text, "\n")
-                        return temp_number
-    
+                        return line_number
 
 def generate_quiz_questions(page_text: str, all_pages_text: List[str] = None, pdf_page_objects: List[LTPage] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
