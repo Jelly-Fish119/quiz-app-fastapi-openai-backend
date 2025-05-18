@@ -23,6 +23,7 @@ from gensim.parsing.preprocessing import STOPWORDS
 import numpy as np
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer, LTTextLine, LTChar, LTPage
+import fitz  # PyMuPDF
 
 # Download required NLTK data
 nltk.download('punkt')
@@ -258,22 +259,32 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
     best_page = max(page_scores, key=lambda x: x[1])
     return best_page[0] if best_page[1] > 0 else 1
 
-def find_best_matching_line(question_keyword: str, page_object: LTPage) -> int:
+def find_best_matching_line(question_keyword: str, page_object: LTPage, pdf_path: str) -> int:
     """Find the best matching line number for a question within a page."""
     if not page_object:
         return 0
         
+    # Get the page number from the LTPage object
+    page_number = page_object.pageid
+    
+    # Open the PDF file
+    doc = fitz.open(pdf_path)
+    page = doc[page_number]
+    
+    # Get text blocks with their positions
+    blocks = page.get_text("blocks")
     line_number = 0
-    for element in page_object:
-        if isinstance(element, LTTextContainer):
-            for text_line in element:
-                if isinstance(text_line, LTTextLine):
-                    line_number += 1
-                    line_text = text_line.get_text().strip()
-                    if question_keyword.lower() in line_text.lower():
-                        return line_number
+    
+    for block in blocks:
+        text = block[4].strip()  # block[4] contains the text
+        if question_keyword.lower() in text.lower():
+            line_number = int(block[1])  # block[1] is the y-coordinate (top)
+            break
+            
+    doc.close()
+    return line_number
 
-def generate_quiz_questions(page_text: str, all_pages_text: List[str] = None, pdf_page_objects: List[LTPage] = None) -> List[QuizQuestion]:
+def generate_quiz_questions(page_text: str, all_pages_text: List[str] = None, pdf_page_objects: List[LTPage] = None, pdf_path: str = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     try:
         # Create a prompt that asks for both topics and questions
@@ -491,7 +502,7 @@ Remember:
                             # Find the best matching line number for this question
                             if all_pages_text and page_num <= len(all_pages_text):
                                 page_text = all_pages_text[page_num - 1]
-                                line_num = find_best_matching_line(current_question['keyword'], pdf_page_objects[page_num - 1])
+                                line_num = find_best_matching_line(current_question['keyword'], pdf_page_objects[page_num - 1], pdf_path)
                                 current_question['line_number'] = line_num
                         except ValueError:
                             print(f"Warning: Could not parse page number from: {line}")
@@ -608,7 +619,7 @@ async def finalize_upload(
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
-            all_questions = generate_quiz_questions(combined_text, all_text, pdf_page_objects)
+            all_questions = generate_quiz_questions(combined_text, all_text, pdf_page_objects, final_path)
             print("all_questions: ", all_questions)
             # Save analysis results
             analysis = AnalysisResponse(
