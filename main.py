@@ -101,6 +101,7 @@ class QuizQuestion(BaseModel):
     line_number: int
     chapter: str
     topic: str
+    keyword: str
 
 class AnalysisResponse(BaseModel):
     topics: List[Topic]
@@ -434,27 +435,18 @@ def find_best_matching_line(question_keyword: str, page_text: str) -> int:
         
     # Split page text into lines
     lines = page_text.split('\n')
-    
-    # Convert question to lowercase for better matching
-    question_keyword_lower = question_keyword.lower()
-    
+    line_number = 0
     # Score each line based on word overlap
-    line_scores = []
     for i, line in enumerate(lines):
         # Convert line to lowercase and get unique words
         line_lower = line.lower()
         
         # Calculate word overlap score
-        if question_keyword_lower in line_lower:
-            score = 1
-        else:
-            score = 0
-        
-        line_scores.append((i + 1, score))  # i + 1 because lines are 1-indexed
+        if question_keyword in line_lower:
+            line_number = i + 1
+            break
+    return line_number
     
-    # Return the line with the highest score
-    best_line = max(line_scores, key=lambda x: x[1])
-    return best_line[0] if best_line[1] > 0 else 0
 
 def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
