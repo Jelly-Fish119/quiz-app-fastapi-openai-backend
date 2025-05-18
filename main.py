@@ -797,7 +797,7 @@ async def finalize_upload(
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
             all_questions = generate_quiz_questions(combined_text, chapters, all_text)
-
+            print("all_questions: ", all_questions)
             # Save analysis results
             analysis = AnalysisResponse(
                 topics=topics,
