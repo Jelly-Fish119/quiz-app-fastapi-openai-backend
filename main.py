@@ -427,7 +427,7 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
     best_page = max(page_scores, key=lambda x: x[1])
     return best_page[0] if best_page[1] > 0 else 1
 
-def find_best_matching_line(question_text: str, page_text: str) -> int:
+def find_best_matching_line(question_keyword: str, page_text: str) -> int:
     """Find the best matching line number for a question within a page."""
     if not page_text:
         return 0
@@ -436,19 +436,19 @@ def find_best_matching_line(question_text: str, page_text: str) -> int:
     lines = page_text.split('\n')
     
     # Convert question to lowercase for better matching
-    question_lower = question_text.lower()
-    question_words = set(question_lower.split())
+    question_keyword_lower = question_keyword.lower()
     
     # Score each line based on word overlap
     line_scores = []
     for i, line in enumerate(lines):
         # Convert line to lowercase and get unique words
         line_lower = line.lower()
-        line_words = set(line_lower.split())
         
         # Calculate word overlap score
-        common_words = question_words.intersection(line_words)
-        score = len(common_words) / len(question_words) if question_words else 0
+        if question_keyword_lower in line_lower:
+            score = 1
+        else:
+            score = 0
         
         line_scores.append((i + 1, score))  # i + 1 because lines are 1-indexed
     
@@ -576,7 +576,8 @@ Remember:
                         'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
-                        'topic': ''
+                        'topic': '',
+                        'keyword': ''
                     }
                     collecting_options = False
                 elif line.startswith('TF:'):
@@ -592,7 +593,8 @@ Remember:
                         'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
-                        'topic': ''
+                        'topic': '',
+                        'keyword': ''
                     }
                     collecting_options = False
                 elif line.startswith('FIB:'):
@@ -608,7 +610,8 @@ Remember:
                         'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
-                        'topic': ''
+                        'topic': '',
+                        'keyword': ''
                     }
                     collecting_options = False
                 elif line.startswith('SA:'):
@@ -624,7 +627,8 @@ Remember:
                         'page_number': 0,  # Will be updated when we get the page number
                         'line_number': 0,
                         'chapter': '',
-                        'topic': ''
+                        'topic': '',
+                        'keyword': ''
                     }
                     collecting_options = False
                 elif current_question:
@@ -653,8 +657,10 @@ Remember:
                             current_question['chapter'] = line[8:].strip()
                         else:
                             current_question['chapter'] = ''
-                            
+
                         collecting_options = False
+                    elif line.startswith('Keyword:'):
+                        current_question['keyword'] = line[9:].strip()
                     elif line.startswith('Page:'):
                         # Extract page number from the response
                         try:
@@ -666,7 +672,7 @@ Remember:
                             # Find the best matching line number for this question
                             if all_pages_text and page_num <= len(all_pages_text):
                                 page_text = all_pages_text[page_num - 1]
-                                line_num = find_best_matching_line(current_question['question'], page_text)
+                                line_num = find_best_matching_line(current_question['keyword'], page_text)
                                 current_question['line_number'] = line_num
                         except ValueError:
                             print(f"Warning: Could not parse page number from: {line}")
