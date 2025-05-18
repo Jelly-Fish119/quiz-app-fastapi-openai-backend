@@ -586,7 +586,7 @@ async def finalize_upload(
         import PyPDF2
         with open(final_path, 'rb') as file:
             pdf_reader = PyPDF2.PdfReader(file)
-            pdf_page_objects = extract_pages(file)
+            pdf_page_objects = list(extract_pages(file))
             all_text = []
             
             # Extract text from each page
