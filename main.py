@@ -427,6 +427,35 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
     best_page = max(page_scores, key=lambda x: x[1])
     return best_page[0] if best_page[1] > 0 else 1
 
+def find_best_matching_line(question_text: str, page_text: str) -> int:
+    """Find the best matching line number for a question within a page."""
+    if not page_text:
+        return 0
+        
+    # Split page text into lines
+    lines = page_text.split('\n')
+    
+    # Convert question to lowercase for better matching
+    question_lower = question_text.lower()
+    question_words = set(question_lower.split())
+    
+    # Score each line based on word overlap
+    line_scores = []
+    for i, line in enumerate(lines):
+        # Convert line to lowercase and get unique words
+        line_lower = line.lower()
+        line_words = set(line_lower.split())
+        
+        # Calculate word overlap score
+        common_words = question_words.intersection(line_words)
+        score = len(common_words) / len(question_words) if question_words else 0
+        
+        line_scores.append((i + 1, score))  # i + 1 because lines are 1-indexed
+    
+    # Return the line with the highest score
+    best_line = max(line_scores, key=lambda x: x[1])
+    return best_line[0] if best_line[1] > 0 else 0
+
 def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     try:
@@ -447,7 +476,7 @@ Topic 3
 Then, generate quiz questions following this exact format:
 
 For Multiple Choice Questions:
-MCQ: [Question text] (Line: [line number])
+MCQ: [Question text]
 Topics: [List of relevant topics from above]
 Options:
 A) [Option 1]
@@ -460,7 +489,7 @@ Page: [Page number]
 Chapter: [Chapter number: Chapter title]
 
 For True/False Questions:
-TF: [Question text] (Line: [line number])
+TF: [Question text]
 Topics: [List of relevant topics from above]
 Correct: [True/False]
 Explanation: [Brief explanation]
@@ -468,7 +497,7 @@ Page: [Page number]
 Chapter: [Chapter number: Chapter title]
 
 For Fill in the Blank Questions:
-FIB: [Question text with _____ for blank] (Line: [line number])
+FIB: [Question text with _____ for blank]
 Topics: [List of relevant topics from above]
 Answer: [Correct answer]
 Explanation: [Brief explanation]
@@ -476,7 +505,7 @@ Page: [Page number]
 Chapter: [Chapter number: Chapter title]
 
 For Short Answer Questions:
-SA: [Question text] (Line: [line number])
+SA: [Question text]
 Topics: [List of relevant topics from above]
 Answer: [Expected answer]
 Explanation: [Brief explanation]
@@ -629,14 +658,14 @@ Remember:
                             if page_num == 0:
                                 page_num = find_best_matching_page(current_question['question'], all_pages_text)
                             current_question['page_number'] = page_num
+                            
+                            # Find the best matching line number for this question
+                            if all_pages_text and page_num <= len(all_pages_text):
+                                page_text = all_pages_text[page_num - 1]
+                                line_num = find_best_matching_line(current_question['question'], page_text)
+                                current_question['line_number'] = line_num
                         except ValueError:
                             print(f"Warning: Could not parse page number from: {line}")
-                    elif '(Line:' in line:
-                        # Extract line number from the question text
-                        line_num_str = line[line.find('(Line:') + 6:line.find(')')].strip()
-                        current_question['line_number'] = parse_line_number(line_num_str)
-                        # Remove the line number from the question text
-                        current_question['question'] = line[:line.find('(Line:')].strip()
         
         # Add the last question if exists
         if current_question:
