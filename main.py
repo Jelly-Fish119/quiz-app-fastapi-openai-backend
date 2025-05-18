@@ -453,7 +453,7 @@ def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_
     try:
         # Create a prompt that asks for both topics and questions
         prompt = f"""Analyze the following text and:
-1. First generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question and with most importance keyword of one line.
+1. First generate quiz questions as much as possible from the following text. Each question should be on a new line and add page number to the question and with a single most important keyword of the page.
 2. Then identify the 2 ~ 3 most important topics for the every quiz question
 3. After that get Chapter number and title for the every quiz question, Extract Chapter number and title from page text. Here are examples: Chapter 1: Machine Learning, Chapter 2: Deep Learning, Chapter 3: Neural Networks etc.
 Text:
@@ -520,7 +520,7 @@ Remember:
 - Questions should test understanding of the key topics
 - Ensure questions are specific to the content on this page
 - Add page number to the question
-- Add most important keyword of the question and add it to the question, don't ruin the word order in the sentences
+- Add most important keyword of the question and add it to the question, don't ruin the word order and pattern in the sentences
 """
 
         # Call Gemini API
