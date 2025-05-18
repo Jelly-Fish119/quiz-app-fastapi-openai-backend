@@ -267,8 +267,10 @@ def find_best_matching_line(question_keyword: str, page_object: LTPage) -> int:
     for element in page_object:
         if isinstance(element, LTTextContainer):
             for text_line in element:
+                print("In 270, text_line: ", text_line, "\n")
                 if isinstance(text_line, LTTextLine):
                     line_text = text_line.get_text().strip()
+                    print("In 273, line_text: ", line_text, "\n")
                     temp_number += 1
                     if question_keyword.lower() in line_text.lower():
                         print("In 274, find_best_matching_line, temp_number: ", temp_number, "and line_text: ", line_text, "\n")
