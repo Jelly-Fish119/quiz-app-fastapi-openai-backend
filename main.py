@@ -435,6 +435,7 @@ def find_best_matching_line(question_keyword: str, page_text: str) -> int:
         
     # Split page text into lines
     lines = page_text.split('\n')
+    print("In 438, find_best_matching_line, lines: ", lines, "\n")
     line_number = 0
     # Score each line based on word overlap
     for i, line in enumerate(lines):
