@@ -520,7 +520,7 @@ Remember:
 - Questions should test understanding of the key topics
 - Ensure questions are specific to the content on this page
 - Add page number to the question
-- Add most important keyword of the question and add it to the question
+- Add most important keyword of the question and add it to the question, don't ruin the word order in the sentences
 """
 
         # Call Gemini API
