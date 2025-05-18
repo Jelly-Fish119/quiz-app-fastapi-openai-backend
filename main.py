@@ -22,7 +22,7 @@ from gensim.utils import simple_preprocess
 from gensim.parsing.preprocessing import STOPWORDS
 import numpy as np
 from pdfminer.high_level import extract_pages
-from pdfminer.layout import LTTextContainer, LTTextLine, LTChar
+from pdfminer.layout import LTTextContainer, LTTextLine, LTChar, LTPage
 
 # Download required NLTK data
 nltk.download('punkt')
@@ -84,13 +84,6 @@ class Topic(BaseModel):
     page_number: int
     line_number: int
 
-class Chapter(BaseModel):
-    number: int
-    name: str
-    confidence: float
-    page_number: int
-    line_number: int
-
 class QuizQuestion(BaseModel):
     question: str
     options: List[str]
@@ -105,7 +98,6 @@ class QuizQuestion(BaseModel):
 
 class AnalysisResponse(BaseModel):
     topics: List[Topic]
-    chapters: List[Chapter]
     questions: List[QuizQuestion]
 
 class UploadForm(BaseModel):
@@ -117,82 +109,6 @@ UPLOAD_DIR = Path("uploads")
 UPLOAD_DIR.mkdir(exist_ok=True)
 CHUNKS_DIR = UPLOAD_DIR / "chunks"
 CHUNKS_DIR.mkdir(exist_ok=True)
-
-def save_to_csv(data: dict, filename: str):
-    """Save analysis data to CSV file"""
-    csv_path = UPLOAD_DIR / f"{filename}.csv"
-    
-    # Define all possible fields
-    fieldnames = [
-        'type',
-        'name',
-        'confidence',
-        'page_number',
-        'line_number',
-        'question',
-        'options',
-        'correct_answer',
-        'explanation',
-        'question_type',
-        'chapter',
-        'topic'
-    ]
-    
-    # Convert data to flat structure for CSV
-    rows = []
-    for topic in data['topics']:
-        rows.append({
-            'type': 'topic',
-            'name': topic['name'],
-            'confidence': topic['confidence'],
-            'page_number': topic['page_number'],
-            'line_number': topic['line_number'],
-            'question': '',
-            'options': '',
-            'correct_answer': '',
-            'explanation': '',
-            'question_type': '',
-            'chapter': '',
-            'topic': ''
-        })
-    
-    for chapter in data['chapters']:
-        rows.append({
-            'type': 'chapter',
-            'name': chapter['name'],
-            'confidence': chapter['confidence'],
-            'page_number': chapter['page_number'],
-            'line_number': chapter['line_number'],
-            'question': '',
-            'options': '',
-            'correct_answer': '',
-            'explanation': '',
-            'question_type': '',
-            'chapter': '',
-            'topic': ''
-        })
-    
-    for question in data['questions']:
-        rows.append({
-            'type': 'question',
-            'name': '',
-            'confidence': '',
-            'page_number': question['page_number'],
-            'line_number': question['line_number'],
-            'question': question['question'],
-            'options': json.dumps(question['options']),
-            'correct_answer': question['correct_answer'],
-            'explanation': question['explanation'],
-            'question_type': question['type'],
-            'chapter': question['chapter'],
-            'topic': question['topic']
-        })
-    
-    # Write to CSV
-    with open(csv_path, 'w', newline='', encoding='utf-8') as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
-        writer.writeheader()
-        writer.writerows(rows)
 
 def extract_topics(text: str, page_number: int, line_number: int) -> List[Topic]:
     """Extract main topics from text using Gensim LDA"""
@@ -260,70 +176,6 @@ def clean_text(text: str) -> str:
     
     return cleaned_text
 
-def extract_chapters_with_pdfminer(pdf_path: str) -> List[Chapter]:
-    chapters = []
-
-    for page_num, page_layout in enumerate(extract_pages(pdf_path), start=1):
-        line_font_sizes = []
-
-        # Gather text lines with average font size
-        for element in page_layout:
-            if isinstance(element, LTTextContainer):
-                for line_number, text_line in enumerate(element):
-                    if isinstance(text_line, LTTextLine):
-                        text = text_line.get_text().strip()
-                        font_sizes = [char.size for char in text_line if isinstance(char, LTChar)]
-
-                        if text and font_sizes:
-                            avg_font_size = sum(font_sizes) / len(font_sizes)
-                            line_font_sizes.append({
-                                'text': text,
-                                'font_size': avg_font_size,
-                                'line_number': line_number
-                            })
-
-        # Get the max font size and lines containing "chapter"
-        if line_font_sizes:
-            max_font_size = max(item['font_size'] for item in line_font_sizes)
-            candidate_lines = [
-                line for line in line_font_sizes
-                if abs(line['font_size'] - max_font_size) < 0.5 and 'chapter' in line['text'].lower()
-            ]
-
-            chapter_pattern = re.compile(r'(?i)chapter\s*(\d+)[\.\:\-\s]*(.*)')
-
-            for line in candidate_lines:
-                match = chapter_pattern.match(line['text'])
-                if match:
-                    try:
-                        chapter_num = int(match.group(1))
-                        chapter_title = match.group(2).strip()
-
-                        # Basic title cleanup
-                        if '.' in chapter_title:
-                            chapter_title = chapter_title.split('.')[0].strip()
-                        if '\n' in chapter_title:
-                            chapter_title = chapter_title.split('\n')[0].strip()
-                        if len(chapter_title.split()) > 10:
-                            continue  # too long to be a title
-
-                        chapter_name = f"Chapter {chapter_num}"
-                        if chapter_title:
-                            chapter_name += f": {chapter_title}"
-
-                        chapters.append(Chapter(
-                            number=chapter_num,
-                            name=chapter_name,
-                            confidence=0.9,
-                            page_number=page_num,
-                            line_number=line['line_number']
-                        ))
-
-                    except ValueError:
-                        continue
-
-    return chapters
-
 def parse_line_number(line_number: str) -> int:
     """Parse line number from string, handling various formats."""
     try:
@@ -380,28 +232,6 @@ def find_best_matching_topics(question_text: str, topics: List[Topic], max_topic
     # Join top topics with their confidence scores
     return ", ".join([f"{topic} ({score:.2f})" for topic, score in top_topics if score > 0])
 
-def find_best_matching_chapter(question_text: str, chapters: List[Chapter]) -> str:
-    """Find the best matching chapter for a question using simple text matching."""
-    if not chapters:
-        return ""
-    
-    # Convert question to lowercase for better matching
-    question_lower = question_text.lower()
-    
-    # Score each chapter based on word overlap
-    chapter_scores = []
-    for chapter in chapters:
-        score = 0
-        chapter_words = chapter.name.lower().split()
-        for word in chapter_words:
-            if word in question_lower:
-                score += 1
-        chapter_scores.append((chapter.name, score))
-    
-    # Return the chapter with the highest score
-    best_chapter = max(chapter_scores, key=lambda x: x[1])
-    return best_chapter[0] if best_chapter[1] > 0 else ""
-
 def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
     """Find the best matching page number for a question using text similarity."""
     if not pages_text:
@@ -428,29 +258,24 @@ def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
     best_page = max(page_scores, key=lambda x: x[1])
     return best_page[0] if best_page[1] > 0 else 1
 
-def find_best_matching_line(question_keyword: str, page_text: str) -> int:
+def find_best_matching_line(question_keyword: str, page_object: LTPage) -> int:
     """Find the best matching line number for a question within a page."""
-    if not page_text:
+    if not page_object:
         return 0
         
-    # Split page text into lines
-    lines = page_text.split('\n')
-    print("In 438, find_best_matching_line, lines: ", lines, "\n")
     line_number = 0
-    # Score each line based on word overlap
-    for i, line in enumerate(lines):
-        # Convert line to lowercase and get unique words
-        line_lower = line.lower()
-        
-        # Calculate word overlap score
-        if question_keyword in line_lower:
-            line_number = i + 1
-            print("In 447, find_best_matching_line, line_number: ", line_number, "and line: ", i, "\n")
-            break
+    for element in page_object:
+        if isinstance(element, LTTextContainer):
+            for i, text_line in enumerate(element):
+                if isinstance(text_line, LTTextLine):
+                    line_text = text_line.get_text().strip()
+                    if question_keyword.lower() in line_text.lower():
+                        line_number = i + 1
+                        break
     return line_number
     
 
-def generate_quiz_questions(page_text: str, chapters: List[Chapter] = None, all_pages_text: List[str] = None) -> List[QuizQuestion]:
+def generate_quiz_questions(page_text: str, all_pages_text: List[str] = None, pdf_page_objects: List[LTPage] = None) -> List[QuizQuestion]:
     """Generate quiz questions for a single page using Gemini."""
     try:
         # Create a prompt that asks for both topics and questions
@@ -668,7 +493,7 @@ Remember:
                             # Find the best matching line number for this question
                             if all_pages_text and page_num <= len(all_pages_text):
                                 page_text = all_pages_text[page_num - 1]
-                                line_num = find_best_matching_line(current_question['keyword'], page_text)
+                                line_num = find_best_matching_line(current_question['keyword'], pdf_page_objects[page_num - 1])
                                 current_question['line_number'] = line_num
                         except ValueError:
                             print(f"Warning: Could not parse page number from: {line}")
@@ -681,12 +506,6 @@ Remember:
             questions.append(current_question)
         print("In 688, generate_quiz_questions, questions: ", questions, "\n")
         print("--------------------------------\n")
-        # Add chapter information to each question
-        if chapters:
-            for question in questions:
-                question['chapter'] = find_best_matching_chapter(question['question'], chapters)
-                print("question: ", question)
-            
         return questions
         
     except Exception as e:
@@ -767,6 +586,7 @@ async def finalize_upload(
         import PyPDF2
         with open(final_path, 'rb') as file:
             pdf_reader = PyPDF2.PdfReader(file)
+            pdf_page_objects = extract_pages(file)
             all_text = []
             
             # Extract text from each page
@@ -780,9 +600,8 @@ async def finalize_upload(
             # Combine all text
             combined_text = "\n\n".join(all_text)
 
-            # Extract topics and chapters
+            # Extract topics
             topics = []
-            chapters = extract_chapters_with_pdfminer(str(final_path))
             
             for page_num, text in enumerate(all_text):
                 # Extract topics
@@ -791,77 +610,16 @@ async def finalize_upload(
 
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
-            all_questions = generate_quiz_questions(combined_text, chapters, all_text)
+            all_questions = generate_quiz_questions(combined_text, all_text, pdf_page_objects)
             print("all_questions: ", all_questions)
             # Save analysis results
             analysis = AnalysisResponse(
                 topics=topics,
-                chapters=chapters,
                 questions=all_questions
             )
-            
-            # Save to CSV
-            save_to_csv(analysis.dict(), f"analysis_{file_name}")
-            
+                        
             return {"fileId": file_name, "analysis": analysis}
 
     except Exception as e:
         print(f"Error processing PDF: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
-
-# @app.post("/pdf/analyze-pages")
-# async def analyze_pages(pages: List[PageContent]) -> AnalysisResponse:
-#     """Analyze pages and generate quiz questions"""
-#     all_topics = []
-#     all_chapters = []
-#     all_questions = []
-#     all_pages_text = [page.text for page in pages]  # Store all page texts for matching
-    
-#     for page in pages:
-#         # Extract topics
-#         topics = extract_topics(page.text, page.page_number, page.line_numbers[0].start)
-#         all_topics.extend(topics)
-        
-#         # Extract chapters
-#         chapters = extract_chapters(page.text, page.page_number)
-#         all_chapters.extend(chapters)
-        
-#         # Generate quiz questions with topics, chapters, and all pages text
-#         questions = generate_quiz_questions(page.text, all_chapters, all_pages_text)
-#         all_questions.extend(questions)
-    
-#     # Create response
-#     response = AnalysisResponse(
-#         topics=all_topics,
-#         chapters=all_chapters,
-#         questions=all_questions
-#     )
-    
-#     # Save to CSV
-#     save_to_csv(response.dict(), f"analysis_{pages[0].page_number}")
-    
-#     return response
-
-# @app.get("/pdf/analysis/{file_id}")
-# async def get_analysis(file_id: str) -> AnalysisResponse:
-#     """Get analysis results for a file"""
-#     csv_path = UPLOAD_DIR / f"analysis_{file_id}.csv"
-#     if not csv_path.exists():
-#         raise HTTPException(status_code=404, detail="Analysis not found")
-    
-#     # Read from CSV and convert to response format
-#     df = pd.read_csv(csv_path)
-    
-#     topics = df[df['type'] == 'topic'].to_dict('records')
-#     chapters = df[df['type'] == 'chapter'].to_dict('records')
-#     questions = df[df['type'] == 'question'].to_dict('records')
-    
-#     # Convert options back to list
-#     for q in questions:
-#         q['options'] = json.loads(q['options'])
-    
-#     return AnalysisResponse(
-#         topics=topics,
-#         chapters=chapters,
-#         questions=questions
-#     )
