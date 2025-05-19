@@ -24,6 +24,8 @@ import numpy as np
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer, LTTextLine, LTChar, LTPage
 import fitz  # PyMuPDF
+from motor.motor_asyncio import AsyncIOMotorClient
+from datetime import datetime
 
 # Download required NLTK data
 nltk.download('punkt')
@@ -55,19 +57,11 @@ if not GOOGLE_API_KEY:
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-def generate_with_gemini(prompt: str, max_retries: int = 3) -> str:
-    """Generate text using Gemini API with retries"""
-    for attempt in range(max_retries):
-        try:
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            print(f"Attempt {attempt + 1} failed: {e}")
-            if attempt == max_retries - 1:
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Error generating content after {max_retries} attempts: {str(e)}"
-                )
+# MongoDB connection
+MONGODB_URL = os.getenv('MONGODB_URL', 'mongodb+srv://your-mongodb-url')
+client = AsyncIOMotorClient(MONGODB_URL)
+db = client.quiz_app
+quiz_collection = db.quizzes
 
 # Data models
 class LineNumber(BaseModel):
@@ -95,11 +89,18 @@ class QuizQuestion(BaseModel):
     line_number: int
     chapter: str
     topic: str
-    keyword: str
+    pdf_name: str
+    created_at: datetime = datetime.utcnow()
 
 class AnalysisResponse(BaseModel):
     topics: List[Topic]
     questions: List[QuizQuestion]
+
+class QuizResponse(BaseModel):
+    id: str
+    pdf_name: str
+    questions: List[QuizQuestion]
+    created_at: datetime
 
 class UploadForm(BaseModel):
     file_name: str
@@ -407,7 +408,8 @@ Remember:
                         'line_number': 0,
                         'chapter': '',
                         'topic': '',
-                        'keyword': ''
+                        'pdf_name': '',
+                        'created_at': datetime.utcnow()
                     }
                     collecting_options = False
                 elif line.startswith('TF:'):
@@ -424,7 +426,8 @@ Remember:
                         'line_number': 0,
                         'chapter': '',
                         'topic': '',
-                        'keyword': ''
+                        'pdf_name': '',
+                        'created_at': datetime.utcnow()
                     }
                     collecting_options = False
                 elif line.startswith('FIB:'):
@@ -441,7 +444,8 @@ Remember:
                         'line_number': 0,
                         'chapter': '',
                         'topic': '',
-                        'keyword': ''
+                        'pdf_name': '',
+                        'created_at': datetime.utcnow()
                     }
                     collecting_options = False
                 elif line.startswith('SA:'):
@@ -458,7 +462,8 @@ Remember:
                         'line_number': 0,
                         'chapter': '',
                         'topic': '',
-                        'keyword': ''
+                        'pdf_name': '',
+                        'created_at': datetime.utcnow()
                     }
                     collecting_options = False
                 elif current_question:
@@ -621,14 +626,58 @@ async def finalize_upload(
             print("\nGenerating questions for the entire document")
             all_questions = generate_quiz_questions(combined_text, all_text, pdf_page_objects, final_path)
             print("all_questions: ", all_questions)
-            # Save analysis results
-            analysis = AnalysisResponse(
-                topics=topics,
-                questions=all_questions
-            )
-                        
-            return {"fileId": file_name, "analysis": analysis}
+            
+            # Store questions in MongoDB
+            quiz_doc = {
+                "pdf_name": file_name,
+                "questions": [q.dict() for q in all_questions],
+                "created_at": datetime.utcnow()
+            }
+            result = await quiz_collection.insert_one(quiz_doc)
+            
+            return {
+                "fileId": file_name,
+                "quiz_id": str(result.inserted_id),
+                "analysis": AnalysisResponse(
+                    topics=topics,
+                    questions=all_questions
+                )
+            }
 
     except Exception as e:
         print(f"Error processing PDF: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing PDF: {str(e)}")
+
+@app.get("/quizzes")
+async def get_quizzes():
+    """Get all quiz files"""
+    quizzes = []
+    async for quiz in quiz_collection.find():
+        quizzes.append({
+            "id": str(quiz["_id"]),
+            "pdf_name": quiz["pdf_name"],
+            "created_at": quiz["created_at"],
+            "question_count": len(quiz["questions"])
+        })
+    return quizzes
+
+@app.get("/quizzes/{quiz_id}")
+async def get_quiz(quiz_id: str):
+    """Get a specific quiz by ID"""
+    quiz = await quiz_collection.find_one({"_id": quiz_id})
+    if not quiz:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    return quiz
+
+@app.get("/quizzes/pdf/{pdf_name}")
+async def get_quizzes_by_pdf(pdf_name: str):
+    """Get all quizzes for a specific PDF file"""
+    quizzes = []
+    async for quiz in quiz_collection.find({"pdf_name": pdf_name}):
+        quizzes.append({
+            "id": str(quiz["_id"]),
+            "pdf_name": quiz["pdf_name"],
+            "created_at": quiz["created_at"],
+            "question_count": len(quiz["questions"])
+        })
+    return quizzes
