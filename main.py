@@ -24,7 +24,7 @@ import numpy as np
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer, LTTextLine, LTChar, LTPage
 import fitz  # PyMuPDF
-from motor.motor_asyncio import AsyncIOMotorClient
+import sqlite3
 from datetime import datetime
 
 # Download required NLTK data
@@ -57,11 +57,54 @@ if not GOOGLE_API_KEY:
 genai.configure(api_key=GOOGLE_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# MongoDB connection
-MONGODB_URL = os.getenv('MONGODB_URL', 'mongodb+srv://your-mongodb-url')
-client = AsyncIOMotorClient(MONGODB_URL)
-db = client.quiz_app
-quiz_collection = db.quizzes
+def generate_with_gemini(prompt: str, max_retries: int = 3) -> str:
+    """Generate text using Gemini API with retries"""
+    for attempt in range(max_retries):
+        try:
+            response = model.generate_content(prompt)
+            return response.text
+        except Exception as e:
+            print(f"Attempt {attempt + 1} failed: {e}")
+            if attempt == max_retries - 1:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Error generating content after {max_retries} attempts: {str(e)}"
+                )
+
+# SQLite database setup
+DB_PATH = "quiz_app.db"
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS quizzes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pdf_name TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    ''')
+    c.execute('''
+        CREATE TABLE IF NOT EXISTS questions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            quiz_id INTEGER,
+            question TEXT NOT NULL,
+            options TEXT,
+            correct_answer TEXT NOT NULL,
+            explanation TEXT,
+            type TEXT NOT NULL,
+            page_number INTEGER,
+            line_number INTEGER,
+            chapter TEXT,
+            topic TEXT,
+            FOREIGN KEY (quiz_id) REFERENCES quizzes (id)
+        )
+    ''')
+    conn.commit()
+    conn.close()
+
+# Initialize database
+init_db()
 
 # Data models
 class LineNumber(BaseModel):
@@ -97,7 +140,7 @@ class AnalysisResponse(BaseModel):
     questions: List[QuizQuestion]
 
 class QuizResponse(BaseModel):
-    id: str
+    id: int
     pdf_name: str
     questions: List[QuizQuestion]
     created_at: datetime
@@ -346,6 +389,7 @@ Chapter: [Chapter number: Chapter title]
 Keyword: [Most important keyword of one line]
 
 Remember:
+- Generate the questions cover all the text
 - Focus on the key topics you identified
 - Line numbers should be simple numbers (e.g., "1" or "2-3")
 - Each question must be on a new line
@@ -627,17 +671,44 @@ async def finalize_upload(
             all_questions = generate_quiz_questions(combined_text, all_text, pdf_page_objects, final_path)
             print("all_questions: ", all_questions)
             
-            # Store questions in MongoDB
-            quiz_doc = {
-                "pdf_name": file_name,
-                "questions": [q.dict() for q in all_questions],
-                "created_at": datetime.utcnow()
-            }
-            result = await quiz_collection.insert_one(quiz_doc)
+            # Store questions in SQLite
+            conn = sqlite3.connect(DB_PATH)
+            c = conn.cursor()
+            
+            # Insert quiz
+            c.execute(
+                "INSERT INTO quizzes (pdf_name, created_at) VALUES (?, ?)",
+                (file_name, datetime.utcnow())
+            )
+            quiz_id = c.lastrowid
+            
+            # Insert questions
+            for question in all_questions:
+                c.execute(
+                    """INSERT INTO questions 
+                       (quiz_id, question, options, correct_answer, explanation, type, 
+                        page_number, line_number, chapter, topic)
+                       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        quiz_id,
+                        question.question,
+                        json.dumps(question.options),
+                        question.correct_answer,
+                        question.explanation,
+                        question.type,
+                        question.page_number,
+                        question.line_number,
+                        question.chapter,
+                        question.topic
+                    )
+                )
+            
+            conn.commit()
+            conn.close()
             
             return {
                 "fileId": file_name,
-                "quiz_id": str(result.inserted_id),
+                "quiz_id": quiz_id,
                 "analysis": AnalysisResponse(
                     topics=topics,
                     questions=all_questions
@@ -651,33 +722,100 @@ async def finalize_upload(
 @app.get("/quizzes")
 async def get_quizzes():
     """Get all quiz files"""
-    quizzes = []
-    async for quiz in quiz_collection.find():
-        quizzes.append({
-            "id": str(quiz["_id"]),
-            "pdf_name": quiz["pdf_name"],
-            "created_at": quiz["created_at"],
-            "question_count": len(quiz["questions"])
-        })
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    c.execute("""
+        SELECT q.id, q.pdf_name, q.created_at, COUNT(qu.id) as question_count
+        FROM quizzes q
+        LEFT JOIN questions qu ON q.id = qu.quiz_id
+        GROUP BY q.id
+        ORDER BY q.created_at DESC
+    """)
+    
+    quizzes = [
+        {
+            "id": row[0],
+            "pdf_name": row[1],
+            "created_at": row[2],
+            "question_count": row[3]
+        }
+        for row in c.fetchall()
+    ]
+    
+    conn.close()
     return quizzes
 
 @app.get("/quizzes/{quiz_id}")
-async def get_quiz(quiz_id: str):
+async def get_quiz(quiz_id: int):
     """Get a specific quiz by ID"""
-    quiz = await quiz_collection.find_one({"_id": quiz_id})
-    if not quiz:
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    # Get quiz info
+    c.execute("SELECT id, pdf_name, created_at FROM quizzes WHERE id = ?", (quiz_id,))
+    quiz_row = c.fetchone()
+    if not quiz_row:
+        conn.close()
         raise HTTPException(status_code=404, detail="Quiz not found")
-    return quiz
+    
+    # Get questions
+    c.execute("""
+        SELECT question, options, correct_answer, explanation, type,
+               page_number, line_number, chapter, topic
+        FROM questions
+        WHERE quiz_id = ?
+    """, (quiz_id,))
+    
+    questions = []
+    for row in c.fetchall():
+        questions.append(QuizQuestion(
+            question=row[0],
+            options=json.loads(row[1]),
+            correct_answer=row[2],
+            explanation=row[3],
+            type=row[4],
+            page_number=row[5],
+            line_number=row[6],
+            chapter=row[7],
+            topic=row[8],
+            pdf_name=quiz_row[1],
+            created_at=quiz_row[2]
+        ))
+    
+    conn.close()
+    
+    return {
+        "id": quiz_row[0],
+        "pdf_name": quiz_row[1],
+        "created_at": quiz_row[2],
+        "questions": questions
+    }
 
 @app.get("/quizzes/pdf/{pdf_name}")
 async def get_quizzes_by_pdf(pdf_name: str):
     """Get all quizzes for a specific PDF file"""
-    quizzes = []
-    async for quiz in quiz_collection.find({"pdf_name": pdf_name}):
-        quizzes.append({
-            "id": str(quiz["_id"]),
-            "pdf_name": quiz["pdf_name"],
-            "created_at": quiz["created_at"],
-            "question_count": len(quiz["questions"])
-        })
+    conn = sqlite3.connect(DB_PATH)
+    c = conn.cursor()
+    
+    c.execute("""
+        SELECT q.id, q.pdf_name, q.created_at, COUNT(qu.id) as question_count
+        FROM quizzes q
+        LEFT JOIN questions qu ON q.id = qu.quiz_id
+        WHERE q.pdf_name = ?
+        GROUP BY q.id
+        ORDER BY q.created_at DESC
+    """, (pdf_name,))
+    
+    quizzes = [
+        {
+            "id": row[0],
+            "pdf_name": row[1],
+            "created_at": row[2],
+            "question_count": row[3]
+        }
+        for row in c.fetchall()
+    ]
+    
+    conn.close()
     return quizzes
