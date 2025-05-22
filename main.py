@@ -17,9 +17,6 @@ import requests
 from dotenv import load_dotenv
 import google.generativeai as genai
 import re
-from gensim import corpora, models
-from gensim.utils import simple_preprocess
-from gensim.parsing.preprocessing import STOPWORDS
 import numpy as np
 from pdfminer.high_level import extract_pages
 from pdfminer.layout import LTTextContainer, LTTextLine, LTChar, LTPage
