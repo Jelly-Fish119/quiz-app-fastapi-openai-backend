@@ -136,7 +136,6 @@ class QuizQuestion(BaseModel):
     created_at: datetime = datetime.utcnow()
 
 class AnalysisResponse(BaseModel):
-    topics: List[Topic]
     questions: List[QuizQuestion]
 
 class QuizResponse(BaseModel):
@@ -155,53 +154,6 @@ UPLOAD_DIR.mkdir(exist_ok=True)
 CHUNKS_DIR = UPLOAD_DIR / "chunks"
 CHUNKS_DIR.mkdir(exist_ok=True)
 
-def extract_topics(text: str, page_number: int, line_number: int) -> List[Topic]:
-    """Extract main topics from text using Gensim LDA"""
-    # Preprocess text
-    def preprocess(text):
-        # Tokenize and clean text
-        tokens = simple_preprocess(text, deacc=True)
-        # Remove stopwords and short words
-        return [token for token in tokens if token not in STOPWORDS and len(token) > 3]
-    
-    # Prepare documents
-    doc = preprocess(text)
-    
-    # Create dictionary and corpus
-    dictionary = corpora.Dictionary([doc])
-    corpus = [dictionary.doc2bow(doc)]
-    
-    # Train LDA model
-    num_topics = 10  # Number of topics to extract
-    lda_model = models.LdaModel(
-        corpus=corpus,
-        id2word=dictionary,
-        num_topics=num_topics,
-        random_state=42,
-        passes=10,
-        alpha='auto'
-    )
-    
-    # Extract topics with their importance scores
-    topics = []
-    for topic_id, topic_terms in lda_model.print_topics():
-        # Get all terms for this topic
-        terms = topic_terms.split('+')
-        # Extract terms and their weights
-        for term in terms:
-            weight = float(term.split('*')[0].strip())
-            term_text = term.split('*')[1].strip().strip('"')
-            if weight > 0.1:  # Only include terms with significant weight
-                topics.append(Topic(
-                    name=term_text,
-                    confidence=weight,
-                    page_number=page_number,
-                    line_number=line_number
-                ))
-    
-    # Sort topics by confidence
-    topics.sort(key=lambda x: x.confidence, reverse=True)
-    return topics
 
 def clean_text(text: str) -> str:
     """Clean text by removing artifacts and normalizing spaces."""
@@ -249,33 +201,6 @@ def parse_question_options(options_str: str, question_type: str) -> List[str]:
     elif question_type == 'short_answer':
         return []  # Short answer questions don't have options
     return []
-
-def find_best_matching_topics(question_text: str, topics: List[Topic], max_topics: int = 3) -> str:
-    """Find the best matching topics for a question using text similarity."""
-    if not topics:
-        return ""
-    
-    # Convert question to lowercase for better matching
-    question_lower = question_text.lower()
-    question_words = set(question_lower.split())
-    
-    # Score each topic based on word overlap and confidence
-    topic_scores = []
-    for topic in topics:
-        score = 0
-        topic_words = topic.name.lower().split()
-        for word in topic_words:
-            if word in question_lower:
-                score += 1
-        # Combine word overlap score with topic confidence
-        final_score = (score / len(topic_words)) * topic.confidence if topic_words else 0
-        topic_scores.append((topic.name, final_score))
-    
-    # Sort topics by score and get top matches
-    top_topics = sorted(topic_scores, key=lambda x: x[1], reverse=True)[:max_topics]
-    
-    # Join top topics with their confidence scores
-    return ", ".join([f"{topic} ({score:.2f})" for topic, score in top_topics if score > 0])
 
 def find_best_matching_page(question_text: str, pages_text: List[str]) -> int:
     """Find the best matching page number for a question using text similarity."""
@@ -658,14 +583,6 @@ async def finalize_upload(
             # Combine all text
             combined_text = "\n\n".join(all_text)
 
-            # Extract topics
-            topics = []
-            
-            for page_num, text in enumerate(all_text):
-                # Extract topics
-                page_topics = extract_topics(text, page_num + 1, 0)
-                topics.extend(page_topics)
-
             # Generate quiz questions for the entire text
             print("\nGenerating questions for the entire document")
             all_questions = generate_quiz_questions(combined_text, all_text, pdf_page_objects, final_path)
@@ -710,7 +627,6 @@ async def finalize_upload(
                 "fileId": file_name,
                 "quiz_id": quiz_id,
                 "analysis": AnalysisResponse(
-                    topics=topics,
                     questions=all_questions
                 )
             }
